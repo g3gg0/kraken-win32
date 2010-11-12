@@ -11,7 +11,7 @@
 
 
 #ifdef WIN32
-#define KRAKEN_VERSION "(rev. 197, g3gg0.de, win32)"
+#define KRAKEN_VERSION "($Revision$, g3gg0.de, win32)"
 #define DL_EXT ".dll"
 #else
 #define KRAKEN_VERSION ""

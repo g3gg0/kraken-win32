@@ -41,7 +41,7 @@
 			<Tool
 				Name="VCCLCompilerTool"
 				Optimization="0"
-				AdditionalIncludeDirectories="compat\zlib;compat\pthreads\include;compat;&quot;C:\Program Files (x86)\ATI Stream\include&quot;"
+				AdditionalIncludeDirectories="compat-win32\zlib;compat-win32\pthreads\include;compat-win32;&quot;C:\Program Files (x86)\ATI Stream\include&quot;"
 				PreprocessorDefinitions="WIN32;_DEBUG;_WINDOWS;_USRDLL;BUILDING_DLL"
 				MinimalRebuild="true"
 				BasicRuntimeChecks="3"
@@ -61,7 +61,7 @@
 			/>
 			<Tool
 				Name="VCLinkerTool"
-				AdditionalDependencies="compat\zlib\zlib.lib compat\pthreads\lib\pthreadVCE2.lib &quot;C:\Program Files (x86)\ATI Stream\lib\aticalcl.lib&quot; &quot;C:\Program Files (x86)\ATI Stream\lib\aticalrt.lib&quot;"
+				AdditionalDependencies="compat-win32\zlib\zlib.lib compat-win32\pthreads\lib\pthreadVCE2.lib &quot;C:\Program Files (x86)\ATI Stream\lib\aticalcl.lib&quot; &quot;C:\Program Files (x86)\ATI Stream\lib\aticalrt.lib&quot;"
 				LinkIncremental="2"
 				GenerateDebugInformation="true"
 				SubSystem="2"
@@ -116,7 +116,7 @@
 				Name="VCCLCompilerTool"
 				Optimization="2"
 				EnableIntrinsicFunctions="true"
-				AdditionalIncludeDirectories="compat\zlib;compat\pthreads\include;compat;&quot;C:\Program Files (x86)\ATI Stream\include&quot;"
+				AdditionalIncludeDirectories="compat-win32\zlib;compat-win32\pthreads\include;compat-win32;&quot;C:\Program Files (x86)\ATI Stream\include&quot;"
 				PreprocessorDefinitions="WIN32;NDEBUG;_WINDOWS;_USRDLL;BUILDING_DLL"
 				RuntimeLibrary="2"
 				EnableFunctionLevelLinking="true"
@@ -135,7 +135,7 @@
 			/>
 			<Tool
 				Name="VCLinkerTool"
-				AdditionalDependencies="compat\zlib\zlib.lib compat\pthreads\lib\pthreadVCE2.lib &quot;C:\Program Files (x86)\ATI Stream\lib\aticalcl.lib&quot; &quot;C:\Program Files (x86)\ATI Stream\lib\aticalrt.lib&quot;"
+				AdditionalDependencies="compat-win32\zlib\zlib.lib compat-win32\pthreads\lib\pthreadVCE2.lib &quot;C:\Program Files (x86)\ATI Stream\lib\aticalcl.lib&quot; &quot;C:\Program Files (x86)\ATI Stream\lib\aticalrt.lib&quot;"
 				LinkIncremental="1"
 				GenerateDebugInformation="true"
 				SubSystem="2"
@@ -236,10 +236,10 @@
 			>
 		</Filter>
 		<Filter
-			Name="compat"
+			Name="compat-win32"
 			>
 			<File
-				RelativePath=".\compat\timeofday.cpp"
+				RelativePath=".\compat-win32\timeofday.cpp"
 				>
 			</File>
 		</Filter>

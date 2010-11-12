@@ -61,26 +61,15 @@ unsigned char* getKernel(unsigned int dp)
 #ifdef WIN32
 	if(gKernelStarts[dp] == NULL)
 	{		
+		char filename[32];
 		FILE* kernel;
 		
-		switch(dp)
-		{
-			case 0:
-				kernel = fopen("my_kernel_dp11.Z", "rb");
-				break;
-			case 1:
-				kernel = fopen("my_kernel_dp12.Z", "rb");
-				break;
-			case 2:
-				kernel = fopen("my_kernel_dp13.Z", "rb");
-				break;
-			case 3:
-				kernel = fopen("my_kernel_dp14.Z", "rb");
-				break;
-		}
+		sprintf(filename, "my_kernel_dp%i.Z", (dp+11));
+		kernel = fopen(filename, "rb");
 		
 		if(kernel == NULL) { 
-			printf("(%s:%i) Failed opening kernel file: 0x%08X\r\n", __FILE__, __LINE__, GetLastError());
+			printf("(%s:%i) Failed opening kernel file '%s': 0x%08X\r\n", __FILE__, __LINE__, filename, GetLastError());
+			printf("(%s:%i) Make sure the ATI kernel is in the startup directory\r\n", __FILE__, __LINE__);
 			return NULL;
 		}
 
