@@ -325,8 +325,9 @@ bool Kraken::Tick()
 			{
 				cpuFree = true;
 			}
-			/* one of both devices are free */
-			if(atiFree ||cpuFree)
+
+			/* at least one of both devices are free */
+			if(atiFree || cpuFree)
 			{
 				uint64_t start_value = mSubmittedStartValue.front();
 				unsigned int start_round= mSubmittedStartRound.front();
@@ -338,20 +339,25 @@ bool Kraken::Tick()
 				mSubmittedAdvance.pop();
 				mSubmittedContext.pop();
 
-#if 1
+#ifdef BALANCE_DEVICES
 				/* ati has priority */
-				if (atiFree) 
+				if(atiFree) 
 				{
-					//printf("job -> ATI\r\n");
 					A5AtiSubmit(start_value, start_round, advance, context);
 				}
 				else
 				{
-					//printf("job -> CPU\r\n");
 					A5CpuSubmit(start_value, start_round, advance, context);
 				}
 #else
-				A5AtiSubmit(start_value, start_round, advance, context);
+				if(mUsingAti)
+				{
+					A5AtiSubmit(start_value, start_round, advance, context);
+				}
+				else
+				{
+					A5CpuSubmit(start_value, start_round, advance, context);
+				}
 #endif
 
 				assigned = true;
