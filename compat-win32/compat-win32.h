@@ -4,9 +4,9 @@
 
 #include <windows.h>
 
-#define usleep(x) Sleep((x/1000)>0?(x/1000):1)
-#define snprintf _snprintf
-#define lseek64 _lseeki64
-
+#define usleep(x) Sleep((x>1000)?(x/1000):1)
+#define strdup(x) _strdup(x)
+#define snprintf  _snprintf
+#define lseek64   _lseeki64
 
 #endif

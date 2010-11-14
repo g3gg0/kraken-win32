@@ -168,10 +168,10 @@ uint64_t TheMatrix::CountUnmix(uint64_t state, uint64_t count)
     unsigned lfsr3 = (state>>41) & 0x7fffff;
 
     for (int i=0; i< 22; i++) {
-        unsigned int bit = count >> (21-i);
+        unsigned int bit = ((count >> (21-i)) & 0xFFFFFFFF);
 
         /* Clock the different lfsr - backwards */
-        unsigned int low = ((lfsr1 & 0x01) ^ bit)<<31;
+        unsigned int low = ((((lfsr1 & 0x01) ^ bit)<<31) & 0xFFFFFFFF);
         lfsr1 = lfsr1 >> 1;
         unsigned int val = (lfsr1&0x52000)*0x4a000;
         val ^= lfsr1<<(31-17);

@@ -115,7 +115,7 @@ DeltaLookup::DeltaLookup(NcqDevice* dev, std::string index)
 			return;
 		}
 
-		for(int bl=0; bl<num; bl++) {
+		for(unsigned int bl=0; bl<num; bl++) {
 			end = buffer[bl];
 			int64_t offset = (end>>12)-last-mStepSize;
 			last = end>>12;
@@ -127,7 +127,7 @@ DeltaLookup::DeltaLookup(NcqDevice* dev, std::string index)
 				return;
 			}
 
-			mBlockIndex[bl]=offset;
+			mBlockIndex[bl] = offset & 0xFFFFFFFF;
 			if ((bl&0xff)==0) {
 				mPrimaryIndex[bl>>8]=end;
 			}

@@ -391,14 +391,6 @@
 			UniqueIdentifier="{67DA6AB6-F800-4c08-8B7A-83BB121AAD01}"
 			>
 		</Filter>
-		<Filter
-			Name="compat-win32"
-			>
-			<File
-				RelativePath=".\compat-win32\timeofday.cpp"
-				>
-			</File>
-		</Filter>
 		<File
 			RelativePath=".\ReadMe.txt"
 			>

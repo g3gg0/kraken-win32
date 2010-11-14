@@ -6,7 +6,6 @@
 
 static uint64_t kr02_whitening(uint64_t key)
 {
-    int i;
     uint64_t white = 0;
     uint64_t bits = 0x93cbc4077efddc15ULL;
     uint64_t b = 0x1;

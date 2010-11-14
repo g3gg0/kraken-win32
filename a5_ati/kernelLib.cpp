@@ -13,6 +13,16 @@ extern "C" {
 #include "zlib.h"
 #endif
 
+}
+
+/* w32 version loads kernels from disk only */
+#ifdef WIN32
+
+static char* gKernelStarts[4];
+static char* gKernelEnds[4];
+
+#else
+
 extern unsigned int _binary_my_kernel_dp11_Z_end;
 extern unsigned int _binary_my_kernel_dp11_Z_size;
 extern unsigned int _binary_my_kernel_dp11_Z_start;
@@ -28,13 +38,7 @@ extern unsigned int _binary_my_kernel_dp13_Z_start;
 extern unsigned int _binary_my_kernel_dp14_Z_end;
 extern unsigned int _binary_my_kernel_dp14_Z_size;
 extern unsigned int _binary_my_kernel_dp14_Z_start;
-}
 
-/* w32 version loads kernels from disk */
-#ifdef WIN32
-static char* gKernelStarts[4];
-static char* gKernelEnds[4];
-#else
 static char* gKernelStarts[4] = {
     (char*)&_binary_my_kernel_dp11_Z_start,
     (char*)&_binary_my_kernel_dp12_Z_start,
@@ -56,7 +60,6 @@ static char* gKernelEnds[4] = {
 unsigned char* getKernelGeneric(unsigned int dp, char* name)
 {
 	bool zipped = true;
-    int ret;
 
     dp -= 11;
     if ((dp<0)||(dp>3)) return NULL;
@@ -65,17 +68,14 @@ unsigned char* getKernelGeneric(unsigned int dp, char* name)
 	char filename[32];
 	FILE* kernel;
 	
-	sprintf(filename, "%s%i.il", name, (dp+11));
-	kernel = fopen(filename, "rb");
-	
-	if(kernel == NULL) 
+	sprintf_s(filename, "%s%i.il", name, (dp+11));
+	if(fopen_s(&kernel, filename, "rb") == 0) 
 	{
 #ifdef HAVE_ZLIB
-		sprintf(filename, "%s%i.Z", name, (dp+11));
-		kernel = fopen(filename, "rb");
 		zipped = true;
-		
-		if(kernel == NULL) 
+
+		sprintf_s(filename, "%s%i.Z", name, (dp+11));
+		if(fopen_s(&kernel, filename, "rb") == 0) 
 #endif
 		{ 
 			printf("A5Ati: Failed opening kernel file '%s'.\r\n", __FILE__, __LINE__, filename);
@@ -109,6 +109,7 @@ unsigned char* getKernelGeneric(unsigned int dp, char* name)
 	if(zipped)
 	{
 #ifdef HAVE_ZLIB
+		int ret;
 		z_stream strm;
 		strm.zalloc = Z_NULL;
 		strm.zfree = Z_NULL;

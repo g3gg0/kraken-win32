@@ -37,9 +37,9 @@ Advance::Advance(unsigned int id, unsigned int size)
     mRFtable = new uint32_t[2*size];
 
     uint64_t r = 0;
-    for (int i=0; i<id; i++) r = AdvanceRFlfsr(r);
+    for (unsigned int i=0; i<id; i++) r = AdvanceRFlfsr(r);
 
-    for (int i=0; i<size; i++) {
+    for (unsigned int i=0; i<size; i++) {
         uint64_t r2 = ReverseBits(r);
         mAdvances[i] = r;
         mRFtable[2*i]   = (unsigned int)(r2);

@@ -36,7 +36,17 @@ NcqDevice::NcqDevice(const char* pzDevNode)
 
 	if(mDevice == NULL)
 	{
-		printf("(%s:%i) Failed to open data disk '%s'\r\n", __FILE__, __LINE__, pzDevNode);
+		printf("Failed to open data disk '%s'\r\n", pzDevNode);
+		return;
+	}
+
+	/* check if user has read access */
+	char tmpBuf[4096];
+	DWORD tmpRead = 0;
+
+	if(ReadFile(mDevice, tmpBuf, 4096, &tmpRead, NULL) == FALSE)
+	{
+		printf("Failed to read from data disk '%s'. Maybe you are not Administrator?\r\n", pzDevNode);
 		return;
 	}
 #else
@@ -133,7 +143,6 @@ void NcqDevice::WorkerThread()
 {
 #ifdef WIN32
 	bool idle = false;
-	char msg[128];
 	struct timeval stopTime;
 
     while (mRunning)
@@ -159,12 +168,12 @@ void NcqDevice::WorkerThread()
 			mMappings[free].overlapped.Offset = offset & 0xFFFFFFFF;
 			mMappings[free].overlapped.OffsetHigh = (offset >> 32);
 
-            bool ret = ReadFile(mDevice, mMappings[free].buffer, 4096, NULL, &(mMappings[free].overlapped));
+            BOOL ret = ReadFile(mDevice, mMappings[free].buffer, 4096, NULL, &(mMappings[free].overlapped));
 
 			int err = GetLastError();
-			if(!ret && (err != ERROR_IO_PENDING))
+			if(ret == FALSE && (err != ERROR_IO_PENDING))
 			{
-				printf ("ReadFile failed with code %i. Aborting reader thread.\r\n", err);
+				printf ("ReadFile on device '%s' failed with code %i. Aborting reader thread.\r\n", mDeviceName, err);
 				return;
 			}
         }
@@ -177,9 +186,9 @@ void NcqDevice::WorkerThread()
 			{
 				queued = true;
 				DWORD bytesRead = 0;
-				bool ret = GetOverlappedResult(mDevice, &(mMappings[i].overlapped), &bytesRead, FALSE);
+				BOOL ret = GetOverlappedResult(mDevice, &(mMappings[i].overlapped), &bytesRead, FALSE);
 
-                if (ret == true && bytesRead == 4096) 
+                if (ret == TRUE && bytesRead == 4096) 
 				{
 					mBlocksRead++;
                     mMappings[i].req->processBlock(mMappings[i].buffer);

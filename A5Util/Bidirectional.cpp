@@ -39,9 +39,9 @@ void Bidirectional::FillBack(uint64_t final) {
      *
      * (Only used to verify code correctness)
      **/
-    unsigned int wlfsr1 = lfsr1;
-    unsigned int wlfsr2 = lfsr2;
-    unsigned int wlfsr3 = lfsr3;
+    unsigned int wlfsr1 = lfsr1 & 0xFFFFFFFF;
+    unsigned int wlfsr2 = lfsr2 & 0xFFFFFFFF;
+    unsigned int wlfsr3 = lfsr3 & 0xFFFFFFFF;
     for (int i=0; i<MAX_STEPS; i++) {
         /* Clock the different lfsr */
         unsigned int val = (wlfsr1&0x52000)*0x4a000;

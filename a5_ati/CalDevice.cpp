@@ -58,7 +58,7 @@ bool CalInitObject::checkInt()
 			if(calDeviceGetCount(&numDevices) != CAL_RESULT_OK) 
 				return false;
 
-			for(int dev = 0; dev < numDevices; dev++)
+			for(unsigned int dev = 0; dev < numDevices; dev++)
 			{
 				// Get the information on the 0th device
 				CALdeviceinfo info;

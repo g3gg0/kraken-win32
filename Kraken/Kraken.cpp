@@ -75,7 +75,7 @@ Kraken::Kraken(const char* config, int server_port) :
 
                 sscanf(&(pFile[pos+7]),"%u %u %llu",&devno,&advance,&offset);
 				printf("dev: %u, adv: %u, offset: %llu\n", devno, advance, offset );
-                if(devno>=mNumDevices)
+                if(devno>=(unsigned int)mNumDevices)
 				{
 					printf(" \\_INVALID DRIVE NUMBER!\r\n");
 					return;
@@ -142,7 +142,6 @@ Kraken::~Kraken()
 
 void Kraken::Crack(int client, const char* plaintext, char *response )
 {
-	int id;
 	char msg[256];
 	
     sem_wait(&mMutex);
@@ -381,7 +380,7 @@ void Kraken::clearFragments()
 	A5CpuClear();
     sem_post(&mMutex);
 
-	for (int i=0; i<mDevices.size(); i++) {
+	for (unsigned int i=0; i<mDevices.size(); i++) {
 		mDevices[i]->Clear();
     }
 }
@@ -417,8 +416,6 @@ void Kraken::reportFind(string found, uint64_t result, int bitPos, int count, in
 {
 	unsigned char keyData[8];
 	char msg[256];
-	char resString[256];
-	char builder[256];
 
 	/* output to client */
 	sprintf(msg, "103 %i %016llx %i (found a table hit)\r\n", mCurrentId, result, bitPos);

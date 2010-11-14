@@ -80,7 +80,7 @@ int  A5Cpu::Submit(uint64_t start_value, uint64_t target,
                    int32_t start_round, int32_t stop_round,
                    uint32_t advance, void* context)
 {
-  if (start_round>=mMaxRound) return -1;
+  if (start_round>=(int)mMaxRound) return -1;
   if (stop_round<0) stop_round = mMaxRound;
 
   int size = 0;
@@ -111,7 +111,7 @@ bool A5Cpu::IsIdle()
 	bool idle = false;
 
 	sem_wait(&mMutex);
-	if (mInputContext.size() < mNumThreads)
+	if ((int)mInputContext.size() < mNumThreads)
 	{
 		idle = true;
 	}
@@ -208,11 +208,11 @@ void A5Cpu::Process(void)
 
     gettimeofday( &tStart, NULL );
     /* Do something */
-    unsigned int out_hi = start_point_r>>32;
-    unsigned int out_lo = start_point_r;
+    unsigned int out_hi = ((start_point_r>>32) & 0xFFFFFFFF);
+    unsigned int out_lo = (start_point_r & 0xFFFFFFFF);
 
-    unsigned int target_lo = target;
-    unsigned int target_hi = target >> 32;
+    unsigned int target_lo = (target & 0xFFFFFFFF);
+    unsigned int target_hi = ((target >> 32) & 0xFFFFFFFF);
 
     unsigned int last_key_lo;
     unsigned int last_key_hi;

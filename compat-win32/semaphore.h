@@ -5,7 +5,8 @@
 
 typedef CRITICAL_SECTION sem_t;
 
-#define sem_init(sem) InitializeCriticalSection(sem)
+/* assuming the inital value of the semaphore is 1 */
+#define sem_init(sem,pshared,value) InitializeCriticalSection(sem)
 #define sem_destroy(sem) DeleteCriticalSection(sem)
 #define sem_post(sem) LeaveCriticalSection(sem)
 #define sem_wait(sem) EnterCriticalSection(sem)

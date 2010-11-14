@@ -387,7 +387,7 @@ void A5Slice::process()
             AtiA5::JobPiece_s* job = &mJobs[32*i+j];
             if (!job->idle) {
                 job->cycles += mIterCount;
-                bool intMerge = job->cycles>mMaxCycles;
+                bool intMerge = job->cycles > (unsigned int)mMaxCycles;
                 if (intMerge || (1<<j)&todo) {
                     /* Time to change round or evict stuck chain */
                     int round = job->current_round;

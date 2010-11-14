@@ -125,7 +125,7 @@ bool AtiA5::IsIdle()
 	bool idle = false;
 
 	sem_wait(&mMutex);
-	if (mInputContext.size()< mParallelRequests)
+	if ((int)mInputContext.size()< mParallelRequests)
 	{
 		idle = true;
 	}
@@ -268,9 +268,6 @@ bool AtiA5::Init(void)
 
 void AtiA5::Process(void)
 {
-    struct timeval tStart;
-    struct timeval tEnd;
-
     int numSlices = 1;
 
 
@@ -392,7 +389,6 @@ void DLL_PUBLIC A5AtiShutdown()
 
 static uint64_t kr02_whitening(uint64_t key)
 {
-    int i;
     uint64_t white = 0;
     uint64_t bits = 0x93cbc4077efddc15ULL;
     uint64_t b = 0x1;
