@@ -51,10 +51,10 @@ Kraken::Kraken(const char* config, int server_port) :
         }
         if (pFile[i]=='\n') pFile[i] ='\0';
     }
-    int pos = 0;
-    while (pos<size) {
+    size_t pos = 0;
+    while (pos<(size_t)size) {
         if (pFile[pos]) {
-            int len = strlen(&pFile[pos]);
+            size_t len = strlen(&pFile[pos]);
             if (strncmp(&pFile[pos],"Device:",7)==0) {
                 //printf("%s\n", &pFile[pos]);
                 const char* ch1 = strchr(&pFile[pos],' ');
@@ -118,26 +118,35 @@ Kraken::Kraken(const char* config, int server_port) :
 
 Kraken::~Kraken()
 {
-	mRunning = false;
-    pthread_join(mConsoleThread, NULL);
+	Shutdown();
+}
 
-	delete mServer;
-	mServer = NULL;
+void Kraken::Shutdown()
+{
+	if(mRunning)
+	{
+		mRunning = false;
+		pthread_join(mConsoleThread, NULL);
 
-    A5CpuShutdown();
-    A5AtiShutdown();
+		mServer->Shutdown();
+		delete mServer;
+		mServer = NULL;
 
-    tableListIt it = mTables.begin();
-    while (it!=mTables.end()) {
-        delete (*it).second;
-        it++;
-    }
+		A5CpuShutdown();
+		A5AtiShutdown();
 
-    for (int i=0; i<mNumDevices; i++) {
-        delete mDevices[i];
-    }
+		tableListIt it = mTables.begin();
+		while (it!=mTables.end()) {
+			delete (*it).second;
+			it++;
+		}
 
-    sem_destroy(&mMutex);
+		for (int i=0; i<mNumDevices; i++) {
+			delete mDevices[i];
+		}
+
+		sem_destroy(&mMutex);
+	}
 }
 
 void Kraken::Crack(int client, const char* plaintext, char *response )
@@ -269,8 +278,8 @@ bool Kraken::Tick()
 			}
 
             size_t len = strlen(plaintext);
-            int samples = len - 63;
-            for (int i=0; i<samples; i++)
+            size_t samples = len - 63;
+            for (size_t i=0; i<samples; i++)
 			{
                 uint64_t plain = 0;
                 uint64_t plainrev = 0;
@@ -470,7 +479,7 @@ void Kraken::serverCmd(int clientID, string cmd)
 
     if (strncmp(command,"test",4)==0)
 	{
-		int queued = kraken->mWorkOrders.size();
+		size_t queued = kraken->mWorkOrders.size();
 
 		/* already processing one request? */
 		if(kraken->mBusy)
@@ -487,7 +496,7 @@ void Kraken::serverCmd(int clientID, string cmd)
 	}
     else if (!strncmp(command,"status",6))
 	{
-		int queued = kraken->mWorkOrders.size();
+		size_t queued = kraken->mWorkOrders.size();
 
 		/* already processing one request? */
 		if(kraken->mBusy)
@@ -501,10 +510,10 @@ void Kraken::serverCmd(int clientID, string cmd)
 	{
         const char* ch = command + 5;
         while (*ch && (*ch!='0') && (*ch!='1')) ch++;
-        int len = strlen(ch);
+        size_t len = strlen(ch);
         if (len>63)
 		{
-			int queued = kraken->mWorkOrders.size();
+			size_t queued = kraken->mWorkOrders.size();
 
 			/* already processing one request? */
 			if(kraken->mBusy)
@@ -614,6 +623,8 @@ int main(int argc, char* argv[])
 			usleep(0);
 		}
     }
+
+	kr.Shutdown();
 
 	return 0;
 }

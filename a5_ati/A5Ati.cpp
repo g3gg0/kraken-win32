@@ -57,12 +57,12 @@ AtiA5::AtiA5(int max_rounds, int condition, unsigned int gpu_mask, int pipeline_
     }
 
 	mUsable = true;
+    mRunning = true;
 
     /* Init semaphore */
     sem_init( &mMutex, 0, 1 );
 
     /* Start worker thread */
-    mRunning = true;
     pthread_create(&mThread, NULL, thread_stub, (void*)this);
 }
 
@@ -81,13 +81,21 @@ void* AtiA5::thread_stub(void* arg)
  */
 AtiA5::~AtiA5()
 {
-    /* stop worker thread */
-    mRunning = false;
-    pthread_join(mThread, NULL);
-    
-    sem_destroy(&mMutex);
+	Shutdown();
 }
-  
+    
+void AtiA5::Shutdown()
+{
+	if(mRunning)
+	{
+		/* stop worker thread */
+		mRunning = false;
+		pthread_join(mThread, NULL);
+	    
+		sem_destroy(&mMutex);
+	}
+}
+
 int  AtiA5::Submit(uint64_t start_value, unsigned int start_round, uint32_t advance, void* context)
 {
     if (start_round>=mMaxRound) return -1;
@@ -383,7 +391,10 @@ void DLL_PUBLIC A5AtiClear()
 
 void DLL_PUBLIC A5AtiShutdown()
 {
-    delete a5Instance;
+	if (a5Instance) {
+		a5Instance->Shutdown();
+		delete a5Instance;
+	}
     a5Instance = NULL;
 }
 

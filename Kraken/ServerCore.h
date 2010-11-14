@@ -36,6 +36,7 @@ public:
 
     void Write(int, string);
     void Broadcast(string);
+	void Shutdown();
 
 private:
     void Serve();

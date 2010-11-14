@@ -67,29 +67,40 @@ ServerCore::ServerCore(int port,dispatch cb) :
         return;
     }
 
+    mRunning = true;
+
     /* Init semaphore */
     sem_init( &mMutex, 0, 1 );
     sem_init( &mQueueMutex, 0, 1 );
 
-    mRunning = true;
     pthread_create(&mThread, NULL, thread_stub, (void*)this);
 }
 
 ServerCore::~ServerCore()
-{
-    mRunning = false;
-    pthread_join(mThread, NULL);
-    map<unsigned int, ClientConnection*>::iterator it = mClientMap.begin();
-    while(it != mClientMap.end())
-    {
-        delete (*it).second;
-        it++;
-    }
-    if(mListener!=-1) {
-        close(mListener);
-    }
-    sem_destroy(&mMutex);
-    sem_destroy(&mQueueMutex);	
+{	
+	Shutdown();
+}
+
+void ServerCore::Shutdown()
+{	
+	if(mRunning)
+	{
+		mRunning = false;
+		pthread_join(mThread, NULL);
+
+		/* disconnect clients */
+		map<unsigned int, ClientConnection*>::iterator it = mClientMap.begin();
+		while(it != mClientMap.end())
+		{
+			delete (*it).second;
+			it++;
+		}
+		if(mListener!=-1) {
+			close(mListener);
+		}
+		sem_destroy(&mMutex);
+		sem_destroy(&mQueueMutex);
+	}
 }
 
 
@@ -153,10 +164,9 @@ void ServerCore::Serve()
         }
         sem_post(&mMutex);
 
-		timeout.tv_sec = 1;
-		timeout.tv_usec = 0;
-        readsocks = select(max_desc+1, &sockets, (fd_set*)0, (fd_set*)0,
-                           &timeout);
+		timeout.tv_sec = 0;
+		timeout.tv_usec = 100000;
+        readsocks = select(max_desc+1, &sockets, (fd_set*)0, (fd_set*)0, &timeout);
 
 		if (readsocks < 0) {
 			printf("ERROR: select failed");
@@ -203,6 +213,9 @@ void ServerCore::Serve()
             sem_post(&mMutex);
         } 
     }
+
+		printf("quit\r\n");
+
 }
 
 

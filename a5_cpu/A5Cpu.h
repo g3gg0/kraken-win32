@@ -61,6 +61,7 @@ public:
   A5Cpu(int max_rounds, int condition, int threads);
   ~A5Cpu();
 
+  void Shutdown();
   int  Submit(uint64_t start_value, uint64_t target_value, int32_t start_round, 
               int32_t stop_round, uint32_t advance, void* context);
 

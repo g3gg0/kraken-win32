@@ -65,17 +65,26 @@ void* A5Cpu::thread_stub(void* arg)
  */
 A5Cpu::~A5Cpu()
 {
-  /* stop worker thread */
-  mRunning = false;
-  for (int i=0; i<mNumThreads; i++) {
-    pthread_join(mThreads[i], NULL);
-  }
-
-  delete [] mThreads;
-
-  sem_destroy(&mMutex);
+	Shutdown();
 }
-  
+
+
+void A5Cpu::Shutdown()
+{
+	if(mRunning)
+	{
+		/* stop worker threads */
+		mRunning = false;
+		for (int i=0; i<mNumThreads; i++) {
+			pthread_join(mThreads[i], NULL);
+		}
+
+		delete [] mThreads;
+
+		sem_destroy(&mMutex);
+	}
+}
+
 int  A5Cpu::Submit(uint64_t start_value, uint64_t target,
                    int32_t start_round, int32_t stop_round,
                    uint32_t advance, void* context)
@@ -521,8 +530,11 @@ bool DLL_PUBLIC A5CpuPopResult(uint64_t& start_value, uint64_t& stop_value,
 
 void DLL_PUBLIC A5CpuShutdown()
 {
-  delete a5Instance;
-  a5Instance = NULL;
+    if (a5Instance) {
+		a5Instance->Shutdown();
+		delete a5Instance;
+    }
+	a5Instance = NULL;
 }
 
 bool DLL_PUBLIC A5CpuIsIdle()

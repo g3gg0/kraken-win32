@@ -64,6 +64,7 @@ public:
     AtiA5(int max_rounds, int condition, unsigned int gpu_mask, int pipeline_mul);
     ~AtiA5();
     bool PipelineInfo(int &length);
+	void Shutdown();
     int  Submit(uint64_t start_value, unsigned int start_round, uint32_t advance, void* context);
     int  SubmitPartial(uint64_t start_value, unsigned int stop_round, uint32_t advance, void* context);
     bool PopResult(uint64_t& start_value, uint64_t& stop_value, void** context);

@@ -25,6 +25,7 @@ public:
     Kraken(const char* config, int server_port=0);
     ~Kraken();
 
+	void Shutdown();
     void Crack(int client, const char* plaintext, char *response = NULL);
     bool Tick();
 

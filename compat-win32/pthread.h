@@ -3,9 +3,9 @@
 
 #include "windows.h"
 
-typedef DWORD pthread_t;
+typedef HANDLE pthread_t;
 
-#define pthread_create(handle,attr,routine,arg) CreateThread(NULL,0,(LPTHREAD_START_ROUTINE)routine,arg,0,handle)
+#define pthread_create(handle,attr,routine,arg) *handle = CreateThread(NULL,0,(LPTHREAD_START_ROUTINE)routine,arg,0,NULL)
 #define pthread_join(handle,value) WaitForSingleObject((HANDLE)handle,INFINITE)
 
 #endif

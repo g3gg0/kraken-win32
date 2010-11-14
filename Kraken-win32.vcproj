@@ -346,10 +346,17 @@
 	<References>
 		<ProjectReference
 			ReferencedProjectIdentifier="{0C9222C6-000C-49BA-83A2-BB2FDA32BEF4}"
+			CopyLocal="false"
+			CopyLocalDependencies="false"
+			UseInBuild="false"
+			CopyLocalSatelliteAssemblies="false"
 			RelativePathToProject=".\Kraken-win32\A5Ati.vcproj"
 		/>
 		<ProjectReference
 			ReferencedProjectIdentifier="{B2A9871E-8028-4B4D-9763-7E1961256964}"
+			CopyLocal="false"
+			CopyLocalDependencies="false"
+			CopyLocalSatelliteAssemblies="false"
 			RelativePathToProject=".\Kraken-win32\A5Cpu.vcproj"
 		/>
 	</References>
