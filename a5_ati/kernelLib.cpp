@@ -162,7 +162,7 @@ unsigned char* getKernelGeneric(unsigned int dp, char* name)
 	}
 	else
 	{
-		int length = gKernelEnds[dp]-gKernelStarts[dp];
+		int length = (int)(gKernelEnds[dp]-gKernelStarts[dp]);
 		void *buf = malloc(length + 1);
 
 		memcpy(buf, gKernelStarts[dp], length);

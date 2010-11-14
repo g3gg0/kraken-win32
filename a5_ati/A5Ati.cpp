@@ -107,7 +107,7 @@ int  AtiA5::Submit(uint64_t start_value, unsigned int start_round, uint32_t adva
     mInputRoundStop.push_back(mMaxRound);
     mInputAdvance.push_back(advance);
     mInputContext.push_back(context);
-    size = mInputRoundStart.size();
+    size = (int)mInputRoundStart.size();
     sem_post(&mMutex);
     return size;
 }
@@ -123,7 +123,7 @@ int  AtiA5::SubmitPartial(uint64_t start_value, unsigned int stop_round, uint32_
     mInputRoundStop.push_front(stop_round);
     mInputAdvance.push_front(advance);
     mInputContext.push_front(context);
-    size = mInputRoundStart.size();
+    size = (int)mInputRoundStart.size();
     sem_post(&mMutex);
     return size;
 }
@@ -283,7 +283,7 @@ void AtiA5::Process(void)
         bool newCmd = false;
 
         sem_wait(&mMutex);
-        int available = mInputStart.size();
+        int available = (int)mInputStart.size();
         sem_post(&mMutex);
 
         int total = available;
