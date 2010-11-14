@@ -81,7 +81,7 @@ A5Slice::A5Slice(AtiA5* cont, int dev, int dp, int rounds, int pipe_mult) :
     unsigned char* myKernel = getKernel(dp);
 
     if (myKernel == NULL) {
-		printf ( "A5Ati:   [%i] Could not load/uncompress kernel from disk/process\r\n", mDevNo);
+		printf ( "A5Ati:   [%i] Could not load optimized kernel\r\n", mDevNo);
 	    freeKernel(myKernel);
 		return;
     }
@@ -91,10 +91,11 @@ A5Slice::A5Slice(AtiA5* cont, int dev, int dp, int rounds, int pipe_mult) :
 		myKernel = getFallbackKernel(dp);
 
 		if (myKernel == NULL) {
-			printf ( "A5Ati:   [%i] Could not load/uncompress kernel from disk/process\r\n", mDevNo);
+			printf ( "A5Ati:   [%i] Could not load fallback kernel\r\n", mDevNo);
 			freeKernel(myKernel);
 			return;
 		}
+
 		/* retry with more generic kernel */
 	    if (calclCompile(&mObject, CAL_LANGUAGE_IL, (const CALchar*)myKernel, mDev->getDeviceInfo()->target) != CAL_RESULT_OK) {
 			printf ( "A5Ati:   [%i] Compilation failed.\r\n", mDevNo);
@@ -102,6 +103,7 @@ A5Slice::A5Slice(AtiA5* cont, int dev, int dp, int rounds, int pipe_mult) :
 			printf ( "A5Ati:   [%i] Your card might be too old for this code.\r\n", mDevNo);
 			return;
 		}
+		printf ( "A5Ati:   [%i] Warning: Using unoptimized kernel for your device.\r\n", mDevNo);
     }
 
     freeKernel(myKernel);

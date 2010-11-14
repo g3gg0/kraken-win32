@@ -40,13 +40,20 @@ NcqDevice::NcqDevice(const char* pzDevNode)
 		return;
 	}
 
-	/* check if user has read access */
-	char tmpBuf[4096];
-	DWORD tmpRead = 0;
+	/* check if user has read access. 
+	   open a new handle here since the mDevice handle allows asynchronous access only.
+	 */
+	char tstBuf[4096];
+	DWORD tstRead = 0;
+	HANDLE tstHandle = CreateFileA(mDeviceName, GENERIC_READ, FILE_SHARE_READ | FILE_SHARE_WRITE, NULL, OPEN_EXISTING, FILE_FLAG_RANDOM_ACCESS, NULL);
+	BOOL tstRet = ReadFile(tstHandle, tstBuf, 4096, &tstRead, NULL) ;
 
-	if(ReadFile(mDevice, tmpBuf, 4096, &tmpRead, NULL) == FALSE)
+	CloseHandle(tstHandle);
+
+	if(tstRet == FALSE || tstRead != 4096)
 	{
-		printf("Failed to read from data disk '%s'. Maybe you are not Administrator?\r\n", pzDevNode);
+		CloseHandle(mDevice);
+		printf("Failed to read from data disk '%s'. Maybe you are not Administrator or have no administrative rights?\r\n", pzDevNode);
 		return;
 	}
 #else
