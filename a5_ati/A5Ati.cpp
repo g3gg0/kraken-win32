@@ -23,6 +23,8 @@
 #include <assert.h>
 #include <stdlib.h>
 #include <unistd.h>
+#include <semaphore.h>
+#include <pthread.h>
 #ifndef WIN32
 #include <sys/wait.h>
 #else
@@ -219,7 +221,7 @@ bool AtiA5::Init(void)
     int core = 1;
     int numCores = CalDevice::getNumDevices();
 
-	printf("A5Ati: Running on %i GPUs\n", numCores);
+	//printf("A5Ati: Setting up %i GPUs...\n", numCores);
     
     mNumSlices = 1;
 	int usedSlices = 0;
@@ -246,7 +248,7 @@ bool AtiA5::Init(void)
 		/* none of the cores did set up properly */
 		if((i == (numCores-1)) && usedSlices == 0)
 		{
-			printf("A5Ati: None of the cores did set up properly\n");
+			printf("A5Ati: None of the GPUs did set up properly\n");
 			return false;
 		}
     }

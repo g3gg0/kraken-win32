@@ -1,7 +1,7 @@
 #ifndef KRAKEN_H
 #define KRAKEN_H
 
-#define BALANCE_DEVICES
+//#define BALANCE_DEVICES
 
 #include "NcqDevice.h"
 #include "DeltaLookup.h"

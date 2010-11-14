@@ -9,8 +9,9 @@
 #endif
 
 extern "C" {
-
+#ifdef HAVE_ZLIB
 #include "zlib.h"
+#endif
 
 extern unsigned int _binary_my_kernel_dp11_Z_end;
 extern unsigned int _binary_my_kernel_dp11_Z_size;
@@ -29,7 +30,7 @@ extern unsigned int _binary_my_kernel_dp14_Z_size;
 extern unsigned int _binary_my_kernel_dp14_Z_start;
 }
 
-
+/* w32 version loads kernels from disk */
 #ifdef WIN32
 static char* gKernelStarts[4];
 static char* gKernelEnds[4];
@@ -51,91 +52,125 @@ static char* gKernelEnds[4] = {
 
 #define CHUNK 1024
 
-unsigned char* getKernel(unsigned int dp)
+
+unsigned char* getKernelGeneric(unsigned int dp, char* name)
 {
+	bool zipped = true;
     int ret;
 
     dp -= 11;
     if ((dp<0)||(dp>3)) return NULL;
 
 #ifdef WIN32
-	if(gKernelStarts[dp] == NULL)
-	{		
-		char filename[32];
-		FILE* kernel;
-		
-		sprintf(filename, "my_kernel_dp%i.Z", (dp+11));
+	char filename[32];
+	FILE* kernel;
+	
+	sprintf(filename, "%s%i.il", name, (dp+11));
+	kernel = fopen(filename, "rb");
+	
+	if(kernel == NULL) 
+	{
+#ifdef HAVE_ZLIB
+		sprintf(filename, "%s%i.Z", name, (dp+11));
 		kernel = fopen(filename, "rb");
+		zipped = true;
 		
-		if(kernel == NULL) { 
-			printf("(%s:%i) Failed opening kernel file '%s': 0x%08X\r\n", __FILE__, __LINE__, filename, GetLastError());
-			printf("(%s:%i) Make sure the ATI kernel is in the startup directory\r\n", __FILE__, __LINE__);
+		if(kernel == NULL) 
+#endif
+		{ 
+			printf("A5Ati: Failed opening kernel file '%s'.\r\n", __FILE__, __LINE__, filename);
+			printf("A5Ati: Make sure the ATI kernels are in the startup directory.\r\n", __FILE__, __LINE__);
 			return NULL;
 		}
-
-		/* get file size */
-		fseek(kernel, 0, SEEK_END);
-		long size = ftell(kernel);
-		fseek(kernel, 0, SEEK_SET);
-
-		gKernelStarts[dp] = (char*)malloc(size);
-		size_t read_blocks = fread(gKernelStarts[dp],size,1,kernel);
-		fclose(kernel);
-
-		if(read_blocks != 1) {
-			printf("(%s:%i) Failed reading kernel file\r\n", __FILE__, __LINE__);
-			return NULL;
-		}
-
-		gKernelEnds[dp] = gKernelStarts[dp] + size;
 	}
+	else
+	{
+		zipped = false;
+	}
+
+	/* get file size */
+	fseek(kernel, 0, SEEK_END);
+	long size = ftell(kernel);
+	fseek(kernel, 0, SEEK_SET);
+
+	gKernelStarts[dp] = (char*)malloc(size);
+	size_t read_blocks = fread(gKernelStarts[dp],size,1,kernel);
+	fclose(kernel);
+
+	if(read_blocks != 1) {
+		printf("(%s:%i) Failed reading kernel file\r\n", __FILE__, __LINE__);
+		return NULL;
+	}
+
+	gKernelEnds[dp] = gKernelStarts[dp] + size;
+	
 #endif
 
-    z_stream strm;
-    strm.zalloc = Z_NULL;
-    strm.zfree = Z_NULL;
-    strm.opaque = Z_NULL;
-    strm.avail_in = gKernelEnds[dp]-gKernelStarts[dp];
-	size_t bsize = CHUNK + 1;
-    void *buf = malloc(bsize);
-    size_t ind = 0;
-    strm.next_out = (Bytef*)buf;
-    strm.next_in = (Bytef*)gKernelStarts[dp];
-    ret = inflateInit(&strm);
-    if (ret != Z_OK) return NULL;
+	if(zipped)
+	{
+#ifdef HAVE_ZLIB
+		z_stream strm;
+		strm.zalloc = Z_NULL;
+		strm.zfree = Z_NULL;
+		strm.opaque = Z_NULL;
+		strm.avail_in = gKernelEnds[dp]-gKernelStarts[dp];
+		size_t bsize = CHUNK + 1;
+		void *buf = malloc(bsize);
+		size_t ind = 0;
+		strm.next_out = (Bytef*)buf;
+		strm.next_in = (Bytef*)gKernelStarts[dp];
+		ret = inflateInit(&strm);
+		if (ret != Z_OK) return NULL;
 
-    do {
-        if ((ind+CHUNK)>bsize) {
-            bsize += CHUNK;
-            buf = realloc(buf, bsize);
-        }
-        strm.avail_out = CHUNK;
-        strm.next_out = &((Bytef*)buf)[ind];
+		do {
+			if ((ind+CHUNK)>bsize) {
+				bsize += CHUNK;
+				buf = realloc(buf, bsize);
+			}
+			strm.avail_out = CHUNK;
+			strm.next_out = &((Bytef*)buf)[ind];
 
-        ret = inflate(&strm, Z_NO_FLUSH);    /* no bad return value */
-        assert(ret != Z_STREAM_ERROR);       /* state not clobbered */
-        switch (ret) {
-        case Z_NEED_DICT:
-        case Z_DATA_ERROR:
-        case Z_MEM_ERROR:
-            printf("Zlib error: %i\n", ret);
-            (void)inflateEnd(&strm);
-            free(buf);
-            return NULL;
-        default:
-            break;
-        }
-        size_t have = CHUNK - strm.avail_out;
-        ind += have;
+			ret = inflate(&strm, Z_NO_FLUSH);    /* no bad return value */
+			assert(ret != Z_STREAM_ERROR);       /* state not clobbered */
+			switch (ret) {
+			case Z_NEED_DICT:
+			case Z_DATA_ERROR:
+			case Z_MEM_ERROR:
+				printf("Zlib error: %i\n", ret);
+				(void)inflateEnd(&strm);
+				free(buf);
+				return NULL;
+			default:
+				break;
+			}
+			size_t have = CHUNK - strm.avail_out;
+			ind += have;
 
-        // printf("Have %i bytes: in %i\n", have, strm.avail_in);
-    
-    } while (strm.avail_out == 0);
+			// printf("Have %i bytes: in %i\n", have, strm.avail_in);
+	    
+		} while (strm.avail_out == 0);
 
-    inflateEnd(&strm);
-    ((char*)buf)[ind]=0;
+		inflateEnd(&strm);
+		((char*)buf)[ind]=0;
 
-    return (unsigned char*)buf;
+		return (unsigned char*)buf;
+#else
+		printf("Zlib not available. Failed uncomressing kernel.\n");
+		return NULL;
+#endif
+	}
+	else
+	{
+		int length = gKernelEnds[dp]-gKernelStarts[dp];
+		void *buf = malloc(length + 1);
+
+		memcpy(buf, gKernelStarts[dp], length);
+		((char*)buf)[length] = 0;
+
+		return (unsigned char*)buf;
+	}
+
+	return NULL;
 }
 
 void freeKernel(unsigned char* k)
@@ -143,13 +178,12 @@ void freeKernel(unsigned char* k)
     free(k);
 }
 
-#if 0
-int main(int argc, char* argv[])
+unsigned char* getFallbackKernel(unsigned int dp)
 {
-    if (argc>1) {
-        printf("%s", getKernel(atoi(argv[1])));
-    } else {
-        printf("%s", getKernel(11));
-    }
+	return getKernelGeneric(dp, "fallback_kernel_dp");
 }
-#endif
+
+unsigned char* getKernel(unsigned int dp)
+{
+	return getKernelGeneric(dp, "optimized_kernel_dp");
+}

@@ -46,7 +46,7 @@ bool CalInitObject::checkInt()
         if (calInit() == CAL_RESULT_OK) {
             mInitialized = true;
 
-			fprintf(stderr, "A5Ati: Initialized CAL\n");
+			//fprintf(stderr, "A5Ati: Initialized CAL\n");
 
             CALuint version[3];
             calGetVersion(&version[0], &version[1], &version[2]);
