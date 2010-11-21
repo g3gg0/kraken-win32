@@ -216,7 +216,7 @@ void AtiA5::PushResult(JobPiece_s* job)
 
 bool AtiA5::PipelineInfo(int &length)
 {
-    printf("A5Ati: Query pipesize: %i\n", mPipelineSize);
+    printf(" [x] A5Ati: Query pipesize: %i\n", mPipelineSize);
     if (mPipelineSize<=0) {
         return false;
     }
@@ -229,7 +229,7 @@ bool AtiA5::Init(void)
     int core = 1;
     int numCores = CalDevice::getNumDevices();
 
-	//printf("A5Ati: Setting up %i GPUs...\n", numCores);
+	//printf(" [x] A5Ati: Setting up %i GPUs...\n", numCores);
     
     mNumSlices = 1;
 	int usedSlices = 0;
@@ -256,14 +256,14 @@ bool AtiA5::Init(void)
 		/* none of the cores did set up properly */
 		if((i == (numCores-1)) && usedSlices == 0)
 		{
-			printf("A5Ati: None of the GPUs did set up properly\n");
+			printf(" [x] A5Ati: None of the GPUs did set up properly\n");
 			return false;
 		}
     }
 
 	if(usedSlices != mNumSlices)
 	{	
-		printf("A5Ati: Was not able to set up the slices.\n");
+		printf(" [x] A5Ati: Was not able to set up the slices.\n");
 		return false;
 	}
 
@@ -277,7 +277,6 @@ bool AtiA5::Init(void)
 void AtiA5::Process(void)
 {
     int numSlices = 1;
-
 
     for(;;) {
         bool newCmd = false;

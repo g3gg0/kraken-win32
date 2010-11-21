@@ -78,8 +78,8 @@ unsigned char* getKernelGeneric(unsigned int dp, char* name)
 		if(fopen_s(&kernel, filename, "rb") != 0) 
 #endif
 		{ 
-			printf("A5Ati: Failed opening kernel file '%s'.\r\n", filename);
-			printf("A5Ati: Make sure the ATI kernels are in the startup directory.\r\n");
+			printf(" [x] A5Ati: Failed opening kernel file '%s'.\r\n", filename);
+			printf(" [x] A5Ati: Make sure the ATI kernels are in the startup directory.\r\n");
 			return NULL;
 		}
 	}
@@ -98,7 +98,7 @@ unsigned char* getKernelGeneric(unsigned int dp, char* name)
 	fclose(kernel);
 
 	if(read_blocks != 1) {
-		printf("A5Ati: Failed decompressing kernel file\r\n");
+		printf(" [x] A5Ati: Failed decompressing kernel file\r\n");
 		return NULL;
 	}
 
@@ -156,7 +156,7 @@ unsigned char* getKernelGeneric(unsigned int dp, char* name)
 
 		return (unsigned char*)buf;
 #else
-		printf("A5Ati: Zlib not available. Failed uncomressing kernel.\n");
+		printf(" [x] A5Ati: Zlib not available. Failed uncomressing kernel.\n");
 		return NULL;
 #endif
 	}

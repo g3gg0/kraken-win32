@@ -10,7 +10,7 @@
 #include <windows.h>
 #endif
 
-#define NCQ_REQUESTS 512
+#define NCQ_REQUESTS 64
 
 using namespace std;
 

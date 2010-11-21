@@ -81,7 +81,7 @@ A5Slice::A5Slice(AtiA5* cont, int dev, int dp, int rounds, int pipe_mult) :
     unsigned char* myKernel = getKernel(dp);
 
     if (myKernel == NULL) {
-		printf ( "A5Ati:   [%i] Could not load optimized kernel\r\n", mDevNo);
+		printf ( " [E] A5Ati:   [%i] Could not load optimized kernel\r\n", mDevNo);
 	    freeKernel(myKernel);
 		return;
     }
@@ -91,27 +91,27 @@ A5Slice::A5Slice(AtiA5* cont, int dev, int dp, int rounds, int pipe_mult) :
 		myKernel = getFallbackKernel(dp);
 
 		if (myKernel == NULL) {
-			printf ( "A5Ati:   [%i] Could not load fallback kernel\r\n", mDevNo);
+			printf ( " [E] A5Ati:   [%i] Could not load fallback kernel\r\n", mDevNo);
 			freeKernel(myKernel);
 			return;
 		}
 
 		/* retry with more generic kernel */
 	    if (calclCompile(&mObject, CAL_LANGUAGE_IL, (const CALchar*)myKernel, mDev->getDeviceInfo()->target) != CAL_RESULT_OK) {
-			printf ( "A5Ati:   [%i] Compilation failed.\r\n", mDevNo);
-			printf ( "A5Ati:   [%i]   Reason: %s\r\n", mDevNo, calclGetErrorString());
-			printf ( "A5Ati:   [%i] Your card might be too old for this code.\r\n", mDevNo);
+			printf ( " [E] A5Ati:   [%i] Compilation failed.\r\n", mDevNo);
+			printf ( " [E] A5Ati:   [%i]   Reason: %s\r\n", mDevNo, calclGetErrorString());
+			printf ( " [E] A5Ati:   [%i] Your card might be too old for this code.\r\n", mDevNo);
 			return;
 		}
-		printf ( "A5Ati:   [%i] Warning: Using unoptimized kernel for your device.\r\n", mDevNo);
+		printf ( " [x] A5Ati:   [%i] Warning: Using unoptimized kernel for your device.\r\n", mDevNo);
     }
 
     freeKernel(myKernel);
     myKernel = NULL;
 
     if (calclLink (&mImage, &mObject, 1) != CAL_RESULT_OK) {
-		printf ( "A5Ati:   [%i] Link failed.\r\n", mDevNo);
-		printf ( "A5Ati:   [%i]   Reason: %s\r\n", mDevNo, calclGetErrorString());
+		printf ( " [E] A5Ati:   [%i] Link failed.\r\n", mDevNo);
+		printf ( " [E] A5Ati:   [%i]   Reason: %s\r\n", mDevNo, calclGetErrorString());
 		return;
     }
 
@@ -124,14 +124,14 @@ A5Slice::A5Slice(AtiA5* cont, int dev, int dp, int rounds, int pipe_mult) :
     mCtx = mDev->getContext();
     mModule = new CalModule(mCtx);
     if (mModule==0) {
-		printf ( "A5Ati:   [%i] Could not create module.\r\n", mDevNo);
-		printf ( "A5Ati:   [%i]   Reason: %s\r\n", mDevNo, calclGetErrorString());
+		printf ( " [E] A5Ati:   [%i] Could not create module.\r\n", mDevNo);
+		printf ( " [E] A5Ati:   [%i]   Reason: %s\r\n", mDevNo, calclGetErrorString());
 		return;
     }
 
     if (!mModule->Load(mImage)) {
-		printf ( "A5Ati:   [%i] Could not load module image.\r\n", mDevNo);
-		printf ( "A5Ati:   [%i]   Reason: %s\r\n", mDevNo, calclGetErrorString());
+		printf ( " [E] A5Ati:   [%i] Could not load module image.\r\n", mDevNo);
+		printf ( " [E] A5Ati:   [%i]   Reason: %s\r\n", mDevNo, calclGetErrorString());
 		return;
     }
 
@@ -141,12 +141,12 @@ A5Slice::A5Slice(AtiA5* cont, int dev, int dp, int rounds, int pipe_mult) :
     if (mIterCount>128) mIterCount = 128;
     mIterCount = 256;
     if (calResMap((CALvoid**)&dataPtr, &pitch, *mConstCount, 0) != CAL_RESULT_OK) {
-		printf ( "A5Ati:   [%i] Could not map mConstCount resource.\r\n", mDevNo);
-		printf ( "A5Ati:   [%i]   Reason: %s\r\n", mDevNo, calclGetErrorString());
+		printf ( " [E] A5Ati:   [%i] Could not map mConstCount resource.\r\n", mDevNo);
+		printf ( " [E] A5Ati:   [%i]   Reason: %s\r\n", mDevNo, calclGetErrorString());
 		return;
     }
     *dataPtr = mIterCount;   /* Number of rounds */
-    printf("A5Ati:   [%i] Running %i rounds per kernel invocation.\n", mDevNo, *dataPtr);
+    printf(" [x] A5Ati:   [%i] Running %i rounds per kernel invocation.\n", mDevNo, *dataPtr);
     calResUnmap(*mConstCount);
 
     mModule->Bind( "cb0", mConstCount );
@@ -154,8 +154,8 @@ A5Slice::A5Slice(AtiA5* cont, int dev, int dp, int rounds, int pipe_mult) :
     mMemLocal = mModule->Bind( "g[]", mResStateLocal );
 
     if (calCtxGetMem(&mMemRemote, *mCtx, *mResStateRemote) != CAL_RESULT_OK) {
-		printf ( "A5Ati:   [%i] Could not add memory to context.\r\n", mDevNo);
-		printf ( "A5Ati:   [%i]   Reason: %s\r\n", mDevNo, calclGetErrorString());
+		printf ( " [E] A5Ati:   [%i] Could not add memory to context.\r\n", mDevNo);
+		printf ( " [E] A5Ati:   [%i]   Reason: %s\r\n", mDevNo, calclGetErrorString());
 		return;
     };
 
@@ -196,7 +196,7 @@ A5Slice::A5Slice(AtiA5* cont, int dev, int dp, int rounds, int pipe_mult) :
 
     memset( mControl, 0, mNum*sizeof(unsigned int) );
 
-    printf("A5Ati:   [%i] Num threads %i\n", mDevNo, mNum );
+	printf(" [x] A5Ati:   [%i] Threads: %i\n", mDevNo, mNum );
 
 	mUsable = true;
 };
@@ -464,7 +464,8 @@ void A5Slice::populate() {
     CALuint pitch = 0;
     if (calResMap((CALvoid**)&mState, &pitch, *mResStateRemote, 0) != CAL_RESULT_OK) 
     {
-        assert(!"Can't map mConstCount resource");
+		printf ( " [E] A5Ati:   [%i] Can't map mResStateRemote resource: %s\r\n", mDevNo, calGetErrorString());
+		return;
     }
     for (int i=0; i < mNum ; i++ ) {
         for(int j=0; j < 32; j++) {
@@ -488,8 +489,8 @@ bool A5Slice::tick()
         res = calMemCopy(&mEvent, *mCtx, mMemRemote, *mMemLocal, 0);
         if (res!=CAL_RESULT_OK)
         {
-            printf("A5Ati:   [%i] Error %i %p : %s\n", mDevNo, res, mMemLocal, calGetErrorString());
-            assert(!"A5Ati: Could not initiate memory copy");
+            printf(" [E] A5Ati:   [%i] Error while calMemCopy: %s\n", mDevNo, calGetErrorString());
+            return false;
         }
         calCtxIsEventDone(*mCtx, mEvent);
         mWaitState = eDMAto;
@@ -501,15 +502,18 @@ bool A5Slice::tick()
             CALuint pitch = 0;
             if (calResMap((CALvoid**)&dataPtr, &pitch, *mResControl, 0) != CAL_RESULT_OK) 
             {
-                assert(!"A5Ati: Can't map mResControl resource");
+				printf(" [E] A5Ati:   [%i] Can't map mResControl resource: %s\n", mDevNo, res, mMemLocal, calGetErrorString());
+				return false;
             }
             memcpy( dataPtr, mControl, mNum*sizeof(unsigned int));
             calResUnmap(*mResControl);
 
             CALdomain domain = {0, 0, mNum, 1};
             gettimeofday(&mTvStarted, NULL);
-            if (!mModule->Exec(domain,64)) {
-                assert(!"A5Ati: Could not execute module.");
+            if (!mModule->Exec(domain,64)) 
+			{
+				printf(" [E] A5Ati:   [%i] Could not execute module: %s\n", mDevNo, res, mMemLocal, calGetErrorString());
+				return false;
             }
         }
         mModule->Finished();
@@ -527,8 +531,8 @@ bool A5Slice::tick()
         }
         if (calMemCopy(&mEvent, *mCtx, *mMemLocal, mMemRemote, 0)!=CAL_RESULT_OK)
         {
-            printf("A5Ati:   [%i] Error %s\n", mDevNo, calGetErrorString());
-            assert(!"A5Ati: Could not initiate memory copy");
+            printf(" [E] A5Ati:   [%i] Error while calMemCopy: %s\n", mDevNo, calGetErrorString());
+            return false;
         }
         calCtxIsEventDone(*mCtx, mEvent);
         mWaitState = eDMAfrom;
@@ -543,7 +547,7 @@ bool A5Slice::tick()
             CALuint pitch = 0;
             if (calResMap((CALvoid**)&mState, &pitch, *mResStateRemote, 0) != CAL_RESULT_OK) 
             {
-                assert(!"A5Ati: Can't map mConstCount resource");
+                assert(!" [x] A5Ati: Can't map mConstCount resource");
             }
 
             // Do the actual CPU processing
@@ -558,14 +562,14 @@ bool A5Slice::tick()
         }
         if (calMemCopy(&mEvent, *mCtx, mMemRemote, *mMemLocal, 0)!=CAL_RESULT_OK)
         {
-            printf("A5Ati:   [%i] Error %s\n", mDevNo, calGetErrorString());
-            assert(!"A5Ati: Could not initiate memory copy");
+            printf(" [E] A5Ati:   [%i] Error while calMemCopy: %s\n", mDevNo, calGetErrorString());
+            return false;
         }
         calCtxIsEventDone(*mCtx, mEvent);
         mWaitState = eDMAto;
         break;
     default:
-        assert(!"A5Ati: State error");
+        assert(!" [E] A5Ati: State error");
     };
 
 #if 0

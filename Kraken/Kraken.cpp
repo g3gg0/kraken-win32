@@ -30,10 +30,19 @@ Kraken::Kraken(const char* config, int server_port) :
     mInstance = this;
 	mRequestId = 0;
 
+	mRequests = 0;
+	mFoundKc = 0;
+	mFailedKc = 0;
+
+	printf("\r\n");
+	printf(" Starting Kraken\r\n");
+	printf("-----------------\r\n");
+	printf("\r\n");
+
     string configFile = string(config)+string("tables.conf");
     FILE* fd = fopen(configFile.c_str(),"rb");
     if (fd==NULL) {
-        printf("Could not find %s\n", configFile.c_str());
+        printf(" [E] Could not find %s\n", configFile.c_str());
         assert(0);
     }
     fseek(fd ,0 ,SEEK_END );
@@ -73,11 +82,18 @@ Kraken::Kraken(const char* config, int server_port) :
                 unsigned int advance;
                 unsigned long long offset;
 
+				printf("\x8\x8\x8\x8\x8\x8\x8\x8\x8\x8\x8\x8\x8\x8");
+				printf("\x8\x8\x8\x8\x8\x8\x8\x8\x8\x8\x8\x8\x8\x8");
+				printf(" [x] Loaded tables: %i    ", mTables.size() + 1);
+				fflush(stdout);
+
                 sscanf(&(pFile[pos+7]),"%u %u %llu",&devno,&advance,&offset);
-				printf("dev: %u, adv: %u, offset: %llu\n", devno, advance, offset );
+
                 if(devno>=(unsigned int)mNumDevices)
 				{
-					printf(" \\_INVALID DRIVE NUMBER!\r\n");
+					printf("\r\n");
+					printf("|| dev: %u, adv: %u, offset: %llu\n", devno, advance, offset );
+					printf(" \\ INVALID DRIVE NUMBER!\r\n");
 					return;
 				}
                 char num[32];
@@ -96,11 +112,12 @@ Kraken::Kraken(const char* config, int server_port) :
     }
     delete [] pFile;
 
+	printf("\r\n");
+
     /* Init semaphore */
     sem_init( &mMutex, 0, 1 );
 
     A5CpuInit(8, 12, 4);
-
     mUsingAti = A5AtiInit(8,12,0xffffffff,1);
 
     mBusy = false;
@@ -154,6 +171,7 @@ void Kraken::Crack(int client, const char* plaintext, char *response )
 	char msg[256];
 	
     sem_wait(&mMutex);
+	mRequests++;
 	mRequestId++;
     sprintf(msg, "101 %i Request queued\r\n", mRequestId );
     mWorkIds.push(mRequestId);
@@ -206,10 +224,12 @@ bool Kraken::Tick()
 
 			if (mFoundKeys == 0)
 			{
+				mFailedKc++;
 				sprintf(msg, "404 %i Key not found (%s)\r\n", mCurrentId, details);
 			}
 			else
 			{
+				mFoundKc++;
 				sprintf(msg, "200 %i ", mCurrentId);
 				for(int pos = 0; pos < 8; pos++)
 				{
@@ -387,6 +407,7 @@ void Kraken::clearFragments()
     sem_wait(&mMutex);
 	mFragments.clear();
 	A5CpuClear();
+	A5AtiClear();
     sem_post(&mMutex);
 
 	for (unsigned int i=0; i<mDevices.size(); i++) {
@@ -504,7 +525,7 @@ void Kraken::serverCmd(int clientID, string cmd)
 			queued++;
 		}
 
-		sprintf(msg, "210 Kraken server (%i jobs currently in queue)\r\n", queued);
+		sprintf(msg, "210 Kraken server (%i jobs in queue, %i processed, %i keys found, %i not found)\r\n", queued, kraken->mRequests, kraken->mFoundKc, kraken->mFailedKc);
 	}
     else if (!strncmp(command,"crack",5))
 	{

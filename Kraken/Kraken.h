@@ -41,6 +41,14 @@ public:
 	static void *consoleThread(void *arg);
 	bool mRunning;
 
+	/* statistics */
+	unsigned int mRequests;
+	unsigned int mFoundKc;
+	unsigned int mFailedKc;
+	/* ToDo: */
+	double mTotalSearchTime;
+	unsigned long mRuntime;
+
 private:
     int mNumDevices;
     vector<NcqDevice*> mDevices;
@@ -70,6 +78,7 @@ private:
 	unsigned char mKeyResult[8];
 
 	unsigned int mRequestId;
+
 };
 
 

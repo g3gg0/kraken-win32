@@ -29,14 +29,14 @@ NcqDevice::NcqDevice(const char* pzDevNode)
 		*offsetstr = '\000';
 	}
 
-	printf("Opening device '%s', start sector %i\r\n", mDeviceName, mStartSector);
+	printf(" [x] Opening device '%s', start sector %i\r\n", mDeviceName, mStartSector);
 
 #ifdef WIN32
 	mDevice = CreateFileA(mDeviceName, GENERIC_READ, FILE_SHARE_READ | FILE_SHARE_WRITE, NULL, OPEN_EXISTING, FILE_FLAG_OVERLAPPED | FILE_FLAG_RANDOM_ACCESS, NULL);
 
 	if(mDevice == NULL)
 	{
-		printf("Failed to open data disk '%s'\r\n", pzDevNode);
+		printf(" [E] Failed to open data disk '%s'\r\n", pzDevNode);
 		return;
 	}
 
@@ -53,7 +53,7 @@ NcqDevice::NcqDevice(const char* pzDevNode)
 	if(tstRet == FALSE || tstRead != 4096)
 	{
 		CloseHandle(mDevice);
-		printf("Failed to read from data disk '%s'. Maybe you are not Administrator or have no administrative rights?\r\n", pzDevNode);
+		printf(" [E] Failed to read from data disk '%s'. Maybe you are not Administrator or have no administrative rights?\r\n", pzDevNode);
 		return;
 	}
 #else
@@ -61,7 +61,7 @@ NcqDevice::NcqDevice(const char* pzDevNode)
 
 	if(mDevice<0)
 	{
-		printf("(%s:%i) Failed to open data disk '%s'\r\n", __FILE__, __LINE__, pzDevNode);
+		printf("([E] Failed to open data disk '%s'\r\n", pzDevNode);
 		return;
 	}
 #endif
@@ -180,7 +180,7 @@ void NcqDevice::WorkerThread()
 			int err = GetLastError();
 			if(ret == FALSE && (err != ERROR_IO_PENDING))
 			{
-				printf ("ReadFile on device '%s' failed with code %i. Aborting reader thread.\r\n", mDeviceName, err);
+				printf (" [E] ReadFile on device '%s' failed with code %i. Aborting reader thread.\r\n", mDeviceName, err);
 				return;
 			}
         }

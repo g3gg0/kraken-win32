@@ -27,7 +27,7 @@ ServerCore::ServerCore(int port,dispatch cb) :
 	WSADATA data;
     if ( WSAStartup ( MAKEWORD ( 1, 1 ), &data ) )
 	{
-        printf("Can't init winsock.\n");
+        printf(" [E] Can't init winsock.\n");
         return;
     }
 #endif
@@ -37,7 +37,7 @@ ServerCore::ServerCore(int port,dispatch cb) :
 
     mListener = socket(PF_INET, SOCK_STREAM, IPPROTO_TCP);
     if(mListener==-1) {
-        printf("Can't create socket.\n");
+        printf(" [E] Can't create socket.\n");
         return;
     }
 #ifndef WIN32
@@ -53,7 +53,7 @@ ServerCore::ServerCore(int port,dispatch cb) :
     if(-1 == bind(mListener,(const struct sockaddr *)&stSockAddr,
                   sizeof(struct sockaddr_in)))
     {
-        printf("error: bind failed\n");
+        printf(" [E] Binding port %i failed. Is there already an instance running?\n", port);
         close(mListener);
         mListener = -1;
         return;
@@ -61,7 +61,7 @@ ServerCore::ServerCore(int port,dispatch cb) :
 
     if(-1 == listen(mListener, 10))
     {
-        printf("error: listen failed\n");
+        printf(" [E] Listen failed\n");
         close(mListener);
         mListener = -1;
         return;
@@ -169,7 +169,7 @@ void ServerCore::Serve()
         readsocks = select(max_desc+1, &sockets, (fd_set*)0, (fd_set*)0, &timeout);
 
 		if (readsocks < 0) {
-			printf("ERROR: select failed");
+			printf(" [E] Select failed");
 			break;
 		}
 
@@ -213,9 +213,6 @@ void ServerCore::Serve()
             sem_post(&mMutex);
         } 
     }
-
-		printf("quit\r\n");
-
 }
 
 

@@ -32,7 +32,12 @@ CalInitObject::CalInitObject() :
 
 CalInitObject::~CalInitObject()
 {
-    if (mInitialized) calShutdown();
+	/* causes crashes - why? */
+
+	/*
+    if (mInitialized) 
+		calShutdown();
+	*/
 }
 
 bool CalInitObject::check()
@@ -46,11 +51,11 @@ bool CalInitObject::checkInt()
         if (calInit() == CAL_RESULT_OK) {
             mInitialized = true;
 
-			//fprintf(stderr, "A5Ati: Initialized CAL\n");
+			//fprintf(stderr, " [x] A5Ati: Initialized CAL\n");
 
             CALuint version[3];
             calGetVersion(&version[0], &version[1], &version[2]);
-            fprintf(stderr, "A5Ati: CAL Runtime version %d.%d.%d\n", version[0],
+            fprintf(stderr, " [x] A5Ati: CAL Runtime version %d.%d.%d\n", version[0],
                    version[1], version[2]);
 
 			// Query the number of devices on the system
@@ -107,12 +112,12 @@ bool CalInitObject::checkInt()
 						break;
 				}
 
-				fprintf(stderr, "A5Ati:   [%i] Device Type = %s\n", dev, devType);
+				fprintf(stderr, " [x] A5Ati:   [%i] Device Type = %s\n", dev, devType);
 			}
         }
 		else
 		{
-			fprintf(stderr, "A5Ati: Initializing CAL failed.\n");
+			fprintf(stderr, " [x] A5Ati: Initializing CAL failed.\n");
 		}
     }
     return mInitialized;
@@ -166,7 +171,7 @@ CalDevice* CalDevice::createDevice(int num)
     calDeviceGetInfo(&pDev->mInfo, num);
     pDev->mAttribs.struct_size = sizeof(CALdeviceattribs);
     if (calDeviceGetAttribs(&pDev->mAttribs, num)!= CAL_RESULT_OK) {
-        fprintf(stderr, "A5Ati: ERROR: Could not query device attributes.\n");
+        fprintf(stderr, " [x] A5Ati: ERROR: Could not query device attributes.\n");
     }
 
     return pDev;
@@ -180,7 +185,7 @@ CALresource* CalDevice::resAllocLocal1D(int width, CALformat format,
     CALresource newRes;
     if(calResAllocLocal1D(&newRes, mDevice, width, format, flags)
        != CAL_RESULT_OK) {
-        fprintf(stderr, "A5Ati: ERROR: Could allocate 1D resource.\n");
+        fprintf(stderr, " [x] A5Ati: ERROR: Could allocate 1D resource.\n");
         return NULL;
     }
 
@@ -198,7 +203,7 @@ CALresource* CalDevice::resAllocLocal2D(int width, int height,
     CALresource newRes;
     if(calResAllocLocal2D(&newRes, mDevice, width, height, format, flags)
        != CAL_RESULT_OK) {
-        fprintf(stderr, "A5Ati: ERROR: Could allocate 2D resource.\n");
+        fprintf(stderr, " [x] A5Ati: ERROR: Could allocate 2D resource.\n");
         return NULL;
     }
 
@@ -217,7 +222,7 @@ CALresource* CalDevice::resAllocRemote1D(int width, CALformat format,
     /* Memory will be specific to this device */
     if(calResAllocRemote1D(&newRes, &mDevice, 1, width, format, flags)
        != CAL_RESULT_OK) {
-        fprintf(stderr, "A5Ati: ERROR: Could allocate 1D remote resource.\n");
+        fprintf(stderr, " [x] A5Ati: ERROR: Could allocate 1D remote resource.\n");
         return NULL;
     }
 
@@ -236,7 +241,7 @@ CALresource* CalDevice::resAllocRemote2D(int width, int height,
     /* Memory will be specific to this device */
     if(calResAllocRemote2D(&newRes, &mDevice, 1, width, height, format, flags)
        != CAL_RESULT_OK) {
-        fprintf(stderr, "A5Ati: ERROR: Could allocate 2D remote resource.\n");
+        fprintf(stderr, " [x] A5Ati: ERROR: Could allocate 2D remote resource.\n");
         return NULL;
     }
 
