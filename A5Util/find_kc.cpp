@@ -1,3 +1,4 @@
+#include <string.h>
 #include <stdio.h>
 #include "Bidirectional.h"
 #include "TheMatrix.h"

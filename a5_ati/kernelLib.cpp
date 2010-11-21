@@ -2,6 +2,7 @@
 #include <malloc.h>
 #include <assert.h>
 #include <stdlib.h>
+#include <string.h>
 #ifdef WIN32
 #include <direct.h>
 #include <stdlib.h>

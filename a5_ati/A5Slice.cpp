@@ -502,7 +502,7 @@ bool A5Slice::tick()
             CALuint pitch = 0;
             if (calResMap((CALvoid**)&dataPtr, &pitch, *mResControl, 0) != CAL_RESULT_OK) 
             {
-				printf(" [E] A5Ati:   [%i] Can't map mResControl resource: %s\n", mDevNo, res, mMemLocal, calGetErrorString());
+				printf(" [E] A5Ati:   [%i] Can't map mResControl resource: %s\n", mDevNo, calGetErrorString());
 				return false;
             }
             memcpy( dataPtr, mControl, mNum*sizeof(unsigned int));
@@ -512,7 +512,7 @@ bool A5Slice::tick()
             gettimeofday(&mTvStarted, NULL);
             if (!mModule->Exec(domain,64)) 
 			{
-				printf(" [E] A5Ati:   [%i] Could not execute module: %s\n", mDevNo, res, mMemLocal, calGetErrorString());
+				printf(" [E] A5Ati:   [%i] Could not execute module: %s\n", mDevNo, calGetErrorString());
 				return false;
             }
         }

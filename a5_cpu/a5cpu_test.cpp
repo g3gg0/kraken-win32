@@ -19,7 +19,6 @@
 #include "A5CpuStubs.h"
 #include <stdio.h>
 #include <iostream>
-#include <misc.h>
 
 
 int main(int argc, char* argv[])
