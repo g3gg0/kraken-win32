@@ -15,7 +15,9 @@
 #include <queue>
 #include <string>
 #include <sys/time.h>
+#ifdef WIN32
 #include <compat-win32.h>
+#endif
 #include "ServerCore.h"
 
 using namespace std;

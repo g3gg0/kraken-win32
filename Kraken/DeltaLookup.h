@@ -5,6 +5,8 @@
 #include <stdint.h>
 #include "NcqDevice.h"
 
+#define CACHE_MAGIC 0x63660CAC
+
 class DeltaLookup {
 public:
     DeltaLookup(NcqDevice *dev, std::string index);
@@ -29,7 +31,6 @@ private:
     uint64_t mHighEndpoint;
     uint64_t mBlockOffset;
 
-    static const uint32_t mCacheMagic = 0x63660CAC;
     static bool mInitStatics;
     static unsigned short mBase[256];
     static unsigned char mBits[256];

@@ -59,7 +59,7 @@ DeltaLookup::DeltaLookup(NcqDevice* dev, std::string index)
 
 	/* throw proper error messages */
 	if (mBlockIndex==NULL || mPrimaryIndex==NULL) {
-		printf("(%s:%i) Failed allocating memory. (errno=%i)\r\n", __FILE__, __LINE__, errno);
+		printf("(%s:%i) Failed allocating memory.\r\n", __FILE__, __LINE__);
 		return;
 	}
 
@@ -77,7 +77,7 @@ DeltaLookup::DeltaLookup(NcqDevice* dev, std::string index)
 		fread(&cachedSize, sizeof(long), 1, cachefd);
 
 		/* check if stored magic and index file size match */
-		if(magic == mCacheMagic && size == cachedSize)
+		if(magic == CACHE_MAGIC && size == cachedSize)
 		{
 			/* they match, so load the already prepared data */
 			fread(&mNumBlocks, sizeof(int), 1, cachefd);
@@ -142,7 +142,9 @@ DeltaLookup::DeltaLookup(NcqDevice* dev, std::string index)
 		/* save to cache if possible */
 		cachefd = fopen(cachefile.c_str(),"wb");
 		if (cachefd != 0) {
-			fwrite(&mCacheMagic, sizeof(uint32_t), 1, cachefd);
+			uint32_t magic = CACHE_MAGIC;
+			
+			fwrite(&magic, sizeof(uint32_t), 1, cachefd);
 			fwrite(&size, sizeof(long), 1, cachefd);
 			fwrite(&mNumBlocks, sizeof(int), 1, cachefd);
 			fwrite(&mStepSize, sizeof(int64_t), 1, cachefd);

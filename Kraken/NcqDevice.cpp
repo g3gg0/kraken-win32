@@ -25,11 +25,11 @@ NcqDevice::NcqDevice(const char* pzDevNode)
      */
 	if(offsetstr)
 	{
-		sscanf(offsetstr+1, "%lu", &mStartSector);
+		sscanf(offsetstr+1, "%Lu", &mStartSector);
 		*offsetstr = '\000';
 	}
 
-	printf(" [x] Opening device '%s', start sector %i\r\n", mDeviceName, mStartSector);
+	printf(" [x] Opening device '%s', start sector %Lu\r\n", mDeviceName, mStartSector);
 
 #ifdef WIN32
 	mDevice = CreateFileA(mDeviceName, GENERIC_READ, FILE_SHARE_READ | FILE_SHARE_WRITE, NULL, OPEN_EXISTING, FILE_FLAG_OVERLAPPED | FILE_FLAG_RANDOM_ACCESS, NULL);
@@ -57,7 +57,7 @@ NcqDevice::NcqDevice(const char* pzDevNode)
 		return;
 	}
 #else
-    mDevice = open(mDeviceName,O_RDONLY|O_BINARY);
+    mDevice = open(mDeviceName,O_RDONLY/*|O_BINARY*/);
 
 	if(mDevice<0)
 	{
