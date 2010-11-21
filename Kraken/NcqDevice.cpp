@@ -61,7 +61,7 @@ NcqDevice::NcqDevice(const char* pzDevNode)
 
 	if(mDevice<0)
 	{
-		printf("([E] Failed to open data disk '%s'\r\n", pzDevNode);
+		printf(" [E] Failed to open data disk '%s'\r\n", pzDevNode);
 		return;
 	}
 #endif
