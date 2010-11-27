@@ -28,7 +28,7 @@ public:
     ~Kraken();
 
 	void Shutdown();
-    void Crack(int client, const char* plaintext, char *response = NULL);
+    int Crack(int client, const char* plaintext);
     bool Tick();
 
     static Kraken* getInstance() { return mInstance; } 
@@ -59,6 +59,7 @@ private:
     map<Fragment*,int> mFragments;
     static Kraken* mInstance;
     sem_t mMutex;
+    sem_t mConsoleMutex;
 	pthread_t mConsoleThread;
 
     queue<int> mWorkIds;

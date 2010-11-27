@@ -116,6 +116,7 @@ Kraken::Kraken(const char* config, int server_port) :
 
     /* Init semaphore */
     sem_init( &mMutex, 0, 1 );
+    sem_init( &mConsoleMutex, 0, 1 );
 
     A5CpuInit(8, 12, 4);
     mUsingAti = A5AtiInit(8,12,0xffffffff,1);
@@ -166,23 +167,20 @@ void Kraken::Shutdown()
 	}
 }
 
-void Kraken::Crack(int client, const char* plaintext, char *response )
+int Kraken::Crack(int client, const char* plaintext)
 {
-	char msg[256];
+	int ret = -1;
 	
     sem_wait(&mMutex);
 	mRequests++;
 	mRequestId++;
-    sprintf(msg, "101 %i Request queued\r\n", mRequestId );
+	ret = mRequestId;
     mWorkIds.push(mRequestId);
     mWorkOrders.push(string(plaintext));
     mWorkClients.push(client);
     sem_post(&mMutex);
 
-	if(response != NULL)
-	{
-		strcat(response, msg);
-	}
+	return ret;
 }
 
 bool Kraken::Tick()
@@ -428,18 +426,28 @@ void Kraken::removeFragment(Fragment* frag)
 
 void Kraken::sendMessage(char *msg, int client)
 {
+	sem_wait(&mConsoleMutex);
+	printf("\x8\x8\x8\x8\x8\x8\x8\x8\x8\x8\x8\x8\x8\x8");
+	printf("\x8\x8\x8\x8\x8\x8\x8\x8\x8\x8\x8\x8\x8\x8");
+	printf("\r");
+
 	if(client != -1)
 	{
 		if(mServer)
 		{
 			mServer->Write(client, msg);
 		}
-		printf("[%i] %s", client, msg);
+		printf(" [i] [client:%i] %s", client, msg);
 	}
 	else
 	{
-		printf("%s", msg);
+		printf(" [i] %s", msg);
 	}
+
+	printf("\rKraken> ");
+	fflush(stdout);
+	
+	sem_post(&mConsoleMutex);
 }
 
 void Kraken::reportFind(string found, uint64_t result, int bitPos, int count, int countRef, char *bitsRef)
@@ -508,12 +516,10 @@ void Kraken::serverCmd(int clientID, string cmd)
 			queued++;
 		}
 
-        sprintf(msg, "100 Queuing request (%i already in queue)\r\n", queued );
-		kraken->sendMessage(msg, clientID);
-
         // Test frame 998
-		strcpy(msg, "");
-        kraken->Crack(clientID, "001101110011000000001000001100011000100110110110011011010011110001101010100100101111111010111100000110101001101011", msg);
+        int id = kraken->Crack(clientID, "001101110011000000001000001100011000100110110110011011010011110001101010100100101111111010111100000110101001101011");
+
+		sprintf(msg, "101 %i Request queued (%i already in queue)\r\n", id, queued );
 	}
     else if (!strncmp(command,"status",6))
 	{
@@ -542,11 +548,8 @@ void Kraken::serverCmd(int clientID, string cmd)
 				queued++;
 			}
 
-            sprintf(msg, "100 Queuing request (%i already in queue)\r\n", queued );
-			kraken->sendMessage(msg, clientID);
-
-			strcpy(msg, "");
-            kraken->Crack(clientID, ch, msg);
+            int id = kraken->Crack(clientID, ch);
+			sprintf(msg, "101 %i Request queued (%i already in queue)\r\n", id, queued  );
         }
 		else
 		{
@@ -600,21 +603,25 @@ void *Kraken::consoleThread(void *arg)
     printf("Kraken Server "KRAKEN_VERSION" running\n");
     printf("Commands are: crack test status fake cancel quit\n");
     printf("\n");
+	printf("\nKraken> ");
 
 	while(kraken->mRunning) {
-		printf("\nKraken> ");
-		char* ch = fgets(command, 256 , stdin);
+		char* ch = fgets(command, 256, stdin);
+
+		sem_wait(&kraken->mConsoleMutex);
 		command[255]='\0';
 		if (!ch) break;
+
 		size_t len = strlen(command);
 		if (command[len-1]=='\n') {
 			len--;
 			command[len]='\0';
 		}
-		printf("\n");
-		
-		kraken->serverCmd(-1, command);
 
+		printf("\rKraken> ");
+		sem_post(&kraken->mConsoleMutex);
+
+		kraken->serverCmd(-1, command);
 		usleep(1000);
 	}
 

@@ -233,8 +233,10 @@ void NcqDevice::WorkerThread()
 				float rate = kBytes / seconds;
 				float avgDelayMs = (mReadTime / mBlocksRead) * 1000.0f;
 
-				sprintf(mDeviceStats, "(%s: %i Kib in %i seconds, thats %i KiB/s, served %i reads)\r\n", mDeviceName, (int)kBytes, (int)seconds, (int)rate, (int)mBlocksRead);
-				printf(mDeviceStats);
+				sprintf(mDeviceStats, "%s: %iblks, %iKiB, %is, %iKiB/s", mDeviceName, (int)mBlocksRead, (int)kBytes, (int)seconds, (int)rate);
+				
+				/* TODO: perhaps we should remove that for a cleaner console */
+				//printf(" [i] Stats: %s\n", mDeviceStats);
 			}
 
 			mBlocksRead = 0;
