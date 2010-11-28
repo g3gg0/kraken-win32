@@ -64,7 +64,7 @@ void Fragment::processBlock(const void* pDataBlock)
 		if (Kraken::getInstance()->isUsingAti()) {
             if (mNumRound) {
                 int res = A5AtiSubmitPartial(search_rev, mNumRound, mAdvance, this);
-                if (res<0) printf("Fail\n");
+                if (res<0) printf(" [E] Failed to queue A5Ati job.\n");
                 mState = 2;
             } else {
                 A5CpuKeySearch(search_rev, mKnownPlaintext, 0, mNumRound+1, mAdvance, this);
@@ -96,10 +96,10 @@ void Fragment::handleSearchResult(uint64_t result, int start_round)
     } else if (mState==1) {
         if (start_round<0) {
             /* Found */
-            char msg[128];
-            snprintf(msg,128,"Found %016llx @ %i    (table:%i)\n", result, mBitPos, mAdvance);
+            //char msg[128];
+            //snprintf(msg,128,"Found %016llx @ %i    (table:%i)\n", result, mBitPos, mAdvance);
             //printf("%s",msg);
-            Kraken::getInstance()->reportFind(string(msg), result, mBitPos, mCount, mCountRef, mBitsRef);
+            Kraken::getInstance()->reportFind(result, mBitPos, mCount, mCountRef, mBitsRef);
         }
         return Kraken::getInstance()->removeFragment(this);
     } else {

@@ -53,7 +53,8 @@ NcqDevice::NcqDevice(const char* pzDevNode)
 	if(tstRet == FALSE || tstRead != 4096)
 	{
 		CloseHandle(mDevice);
-		printf(" [E] Failed to read from data disk '%s'. Maybe you are not Administrator or have no administrative rights?\r\n", pzDevNode);
+		printf(" [E] Failed to read from data disk '%s'.\r\n", pzDevNode);
+		printf(" [E] Maybe you are not Administrator or have no administrative rights?\r\n");
 		return;
 	}
 #else
@@ -180,7 +181,8 @@ void NcqDevice::WorkerThread()
 			int err = GetLastError();
 			if(ret == FALSE && (err != ERROR_IO_PENDING))
 			{
-				printf (" [E] ReadFile on device '%s' failed with code %i. Aborting reader thread.\r\n", mDeviceName, err);
+				printf (" [E] ReadFile on device '%s' failed with code %i. \r\n", mDeviceName, err);
+				printf (" [E] Aborting reader thread. No further processing possible.\r\n");
 				return;
 			}
         }

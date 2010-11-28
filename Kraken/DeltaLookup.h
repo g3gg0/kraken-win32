@@ -5,7 +5,7 @@
 #include <stdint.h>
 #include "NcqDevice.h"
 
-#define CACHE_MAGIC 0x63660CAC
+#define CACHE_MAGIC 0x63661CAC
 
 class DeltaLookup {
 public:
@@ -23,8 +23,14 @@ private:
     NcqDevice* mDevice;
 
     int* mBlockIndex;
+	uint64_t mBlockIndexSize;
+	uint64_t mBlockIndexEntries;
+
     uint64_t* mPrimaryIndex;
-    int mNumBlocks;
+	uint64_t mPrimaryIndexSize;
+	uint64_t mPrimaryIndexEntries;
+
+
     int64_t mStepSize; // avarage step pr block
 
     uint64_t mLowEndpoint;

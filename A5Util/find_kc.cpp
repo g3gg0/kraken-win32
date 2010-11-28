@@ -50,6 +50,8 @@ int find_kc(uint64_t stop, uint32_t pos, uint32_t framecount, uint32_t framecoun
 					ok++;
 				}
             }
+
+			/* TODO: why 104? shouldn't that be 114? */
             if (ok>104) {
 				valid = true;
 #ifndef EMBED_FINDKC

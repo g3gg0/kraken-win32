@@ -38,24 +38,32 @@ unsigned char DeltaLookup::mBits[256];
 DeltaLookup::DeltaLookup(NcqDevice* dev, std::string index)
 {
     /* Load index - compress to ~41MB of alloced memory */
-    FILE* fd = fopen(index.c_str(),"rb");
+    FILE* indexfd = fopen(index.c_str(),"rb");
 
 	/* throw proper error messages */
-    if (fd == NULL) {
+    if (indexfd == NULL) {
         printf("(%s:%i) Could not open %s for reading.\n", __FILE__, __LINE__, index.c_str());
 		return;
     }
 
 	/* get index file size first */
-    fseek(fd ,0 ,SEEK_END );
-    long size = ftell(fd);
-    unsigned int num = (size / sizeof(uint64_t))-1;
-    fseek(fd ,0 ,SEEK_SET );
+    fseek(indexfd ,0 ,SEEK_END );
+    uint64_t index_file_size = (uint64_t)ftell(indexfd);
+    uint64_t index_file_entries = (index_file_size / sizeof(uint64_t))-1;
+    fseek(indexfd ,0 ,SEEK_SET );
 
 	/* then allocate structures according to that size */
-    mBlockIndex = (int*)malloc((num+1)*sizeof(int));
-    mPrimaryIndex = (uint64_t*)malloc(((num/256)+1)*sizeof(int64_t));
-	size_t alloced = (num+1)*sizeof(int)+((num/256)+1)*sizeof(int64_t);
+    mBlockIndexEntries = index_file_entries + 1;
+    mBlockIndexSize = mBlockIndexEntries * sizeof(int);
+    mBlockIndex = (int*)malloc(mBlockIndexSize);
+	mBlockIndex[mBlockIndexEntries-1] = 0;
+
+	mPrimaryIndexEntries = (index_file_entries/256) + 1;
+    mPrimaryIndexSize = mPrimaryIndexEntries * sizeof(int64_t);
+    mPrimaryIndex = (uint64_t*)malloc(mPrimaryIndexSize);
+	mPrimaryIndex[mPrimaryIndexEntries-1] = 0;
+
+	size_t alloced = mBlockIndexSize + mPrimaryIndexSize;
 
 	/* throw proper error messages */
 	if (mBlockIndex==NULL || mPrimaryIndex==NULL) {
@@ -71,21 +79,22 @@ DeltaLookup::DeltaLookup(NcqDevice* dev, std::string index)
 	/* was there one? */
     if (cachefd != 0) {
 		uint32_t magic = 0;
-		long cachedSize = 0;
+		uint32_t spare = 0;
+		uint64_t cachedSize = 0;
 
 		fread(&magic, sizeof(uint32_t), 1, cachefd);
-		fread(&cachedSize, sizeof(long), 1, cachefd);
+		fread(&cachedSize, sizeof(uint64_t), 1, cachefd);
 
 		/* check if stored magic and index file size match */
-		if(magic == CACHE_MAGIC && size == cachedSize)
+		if(magic == CACHE_MAGIC && index_file_size == cachedSize)
 		{
 			/* they match, so load the already prepared data */
-			fread(&mNumBlocks, sizeof(int), 1, cachefd);
+			fread(&spare, sizeof(uint32_t), 1, cachefd);
 			fread(&mStepSize, sizeof(int64_t), 1, cachefd);
 			fread(&mLowEndpoint, sizeof(uint64_t), 1, cachefd);
 			fread(&mHighEndpoint, sizeof(uint64_t), 1, cachefd);
-			fread(mBlockIndex, (num+1)*sizeof(int), 1, cachefd);
-			fread(mPrimaryIndex, (num/256+1)*sizeof(int64_t), 1, cachefd);
+			fread(mBlockIndex, mBlockIndexSize, 1, cachefd);
+			fread(mPrimaryIndex, mPrimaryIndexSize, 1, cachefd);
 			cached = true;
 		}
 		fclose(cachefd);
@@ -93,29 +102,32 @@ DeltaLookup::DeltaLookup(NcqDevice* dev, std::string index)
 	
 	/* either no cache file available or loading failed */
 	if(!cached) {
-		uint64_t *buffer = (uint64_t*)malloc(size);
-		mNumBlocks = num;
+		printf("(caching)");
+		fflush(stdout);
+
+		uint64_t *buffer = (uint64_t*)malloc(index_file_size);
 
 		if (buffer == NULL) {
 			printf("(%s:%i) Failed allocating memory\r\n", __FILE__, __LINE__);
 			return;
 		}
 
+		mStepSize = 0xfffffffffffffLL/(index_file_entries+1);
+
 		uint64_t end;
-		mStepSize = 0xfffffffffffffLL/(num+1);
 		int64_t min = 0;
 		int64_t max = 0;
 		int64_t last = 0;
 
 		/* read the whole file at once to speed up loading */
-		size_t read_blocks = fread(buffer,size,1,fd);
+		size_t read_blocks = fread(buffer,index_file_size,1,indexfd);
 
 		if(read_blocks != 1) {
-			printf("(%s:%i) Failed reading index\r\n", __FILE__, __LINE__);
+			printf("(%s:%i) Failed reading index file\r\n", __FILE__, __LINE__);
 			return;
 		}
 
-		for(unsigned int bl=0; bl<num; bl++) {
+		for(unsigned int bl=0; bl<index_file_entries; bl++) {
 			end = buffer[bl];
 			int64_t offset = (end>>12)-last-mStepSize;
 			last = end>>12;
@@ -132,31 +144,32 @@ DeltaLookup::DeltaLookup(NcqDevice* dev, std::string index)
 				mPrimaryIndex[bl>>8]=end;
 			}
 		}
-		mBlockIndex[num] = 0x7fffffff; /* for detecting last index */
-		printf(" \\_min: %llx, max: %llx, index: %llx, alloc:%i\r\n", min,max,mPrimaryIndex[1],alloced);
+		mBlockIndex[index_file_entries] = 0x7fffffff; /* for detecting last index */
+		//printf(" \\_min: %llx, max: %llx, index: %llx, alloc:%i\r\n", min,max,mPrimaryIndex[1],alloced);
 
 		mLowEndpoint = mPrimaryIndex[0];
-		mHighEndpoint = buffer[num];
+		mHighEndpoint = buffer[index_file_entries];
 		free(buffer);
 
 		/* save to cache if possible */
 		cachefd = fopen(cachefile.c_str(),"wb");
 		if (cachefd != 0) {
 			uint32_t magic = CACHE_MAGIC;
+			uint32_t spare = 0;
 			
 			fwrite(&magic, sizeof(uint32_t), 1, cachefd);
-			fwrite(&size, sizeof(long), 1, cachefd);
-			fwrite(&mNumBlocks, sizeof(int), 1, cachefd);
+			fwrite(&index_file_size, sizeof(uint64_t), 1, cachefd);
+			fwrite(&spare, sizeof(uint32_t), 1, cachefd);
 			fwrite(&mStepSize, sizeof(int64_t), 1, cachefd);
 			fwrite(&mLowEndpoint, sizeof(uint64_t), 1, cachefd);
 			fwrite(&mHighEndpoint, sizeof(uint64_t), 1, cachefd);
-			fwrite(mBlockIndex, (num+1)*sizeof(int), 1, cachefd);
-			fwrite(mPrimaryIndex, (num/256+1)*sizeof(int64_t), 1, cachefd);
+			fwrite(mBlockIndex, mBlockIndexSize, 1, cachefd);
+			fwrite(mPrimaryIndex, mPrimaryIndexSize, 1, cachefd);
 			fclose(cachefd);
 		}
 	}
 
-    fclose(fd);
+    fclose(indexfd);
     mBlockOffset=0ULL;
 
     mDevice = dev;
@@ -205,12 +218,27 @@ uint64_t DeltaLookup::StartEndpointSearch(NcqRequestor* req, uint64_t end, uint6
 
     uint64_t here = mPrimaryIndex[bl];
     int count = 0;
-    bl = bl *256;
+    bl = bl * 256;
+
+	/* have seen a crash in the loop below due to beyond-array access. reason unknown. check before loop... */
+	if(bl+1 >= mBlockIndexEntries)
+	{
+		printf(" [E] Accessing array beyond end in %s:%i\n", __FILE__, __LINE__);
+		return 0ULL;
+	}
+
     uint64_t delta = (mStepSize + mBlockIndex[bl+1])<<12;
     while((here+delta)<=end) {
         here+=delta;
         bl++;
         count++;
+
+		/* ... and make sure the index does not get larger than the array is */
+		if(bl+1 >= mBlockIndexEntries)
+		{
+			printf(" [E] Accessing array beyond end in %s:%i\n", __FILE__, __LINE__);
+			return 0ULL;
+		}
         delta = (mStepSize + mBlockIndex[bl+1])<<12;
     }
 

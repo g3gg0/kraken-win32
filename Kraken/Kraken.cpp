@@ -84,6 +84,8 @@ Kraken::Kraken(const char* config, int server_port) :
 
 				printf("\x8\x8\x8\x8\x8\x8\x8\x8\x8\x8\x8\x8\x8\x8");
 				printf("\x8\x8\x8\x8\x8\x8\x8\x8\x8\x8\x8\x8\x8\x8");
+				printf("\x8\x8\x8\x8\x8\x8\x8\x8\x8\x8\x8\x8\x8\x8");
+				printf("\r");
 				printf(" [x] Loaded tables: %i    ", mTables.size() + 1);
 				fflush(stdout);
 
@@ -426,9 +428,14 @@ void Kraken::removeFragment(Fragment* frag)
 
 void Kraken::sendMessage(char *msg, int client)
 {
+	
+	/* make sure the console input interface does not corrupt our output */
 	sem_wait(&mConsoleMutex);
+
+	/* clear the last output. usually just the Kraken> prompt but maybe also some user input */
 	printf("\x8\x8\x8\x8\x8\x8\x8\x8\x8\x8\x8\x8\x8\x8");
 	printf("\x8\x8\x8\x8\x8\x8\x8\x8\x8\x8\x8\x8\x8\x8");
+	/* make sure we are printing at the first column */
 	printf("\r");
 
 	if(client != -1)
@@ -446,17 +453,18 @@ void Kraken::sendMessage(char *msg, int client)
 
 	printf("\rKraken> ");
 	fflush(stdout);
-	
+
+	/* we're done */
 	sem_post(&mConsoleMutex);
 }
 
-void Kraken::reportFind(string found, uint64_t result, int bitPos, int count, int countRef, char *bitsRef)
+void Kraken::reportFind(uint64_t result, int bitPos, int count, int countRef, char *bitsRef)
 {
 	unsigned char keyData[8];
 	char msg[256];
 
 	/* output to client */
-	sprintf(msg, "103 %i %016llx %i (found a table hit)\r\n", mCurrentId, result, bitPos);
+	sprintf(msg, "103 %i %016llX %i (found a table hit)\r\n", mCurrentId, result, bitPos);
 	sendMessage(msg, mCurrentClient);
 
 	/* was this a Kc cracking command with reference bits? */
@@ -603,12 +611,14 @@ void *Kraken::consoleThread(void *arg)
     printf("Kraken Server "KRAKEN_VERSION" running\n");
     printf("Commands are: crack test status fake cancel quit\n");
     printf("\n");
-	printf("\nKraken> ");
+	printf("Kraken> ");
 
 	while(kraken->mRunning) {
 		char* ch = fgets(command, 256, stdin);
 
+		/* make sure the console writer does not corrupt our output */
 		sem_wait(&kraken->mConsoleMutex);
+
 		command[255]='\0';
 		if (!ch) break;
 
@@ -619,8 +629,12 @@ void *Kraken::consoleThread(void *arg)
 		}
 
 		printf("\rKraken> ");
+		fflush(stdout);
+
+		/* we're finished with printing stuff */
 		sem_post(&kraken->mConsoleMutex);
 
+		/* process command */
 		kraken->serverCmd(-1, command);
 		usleep(1000);
 	}

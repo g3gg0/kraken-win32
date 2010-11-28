@@ -37,7 +37,7 @@ public:
 
     bool isUsingAti() {return mUsingAti;}
 
-    void reportFind(string found, uint64_t result, int bitPos, int count, int countRef, char *bitsRef);
+    void reportFind(uint64_t result, int bitPos, int count, int countRef, char *bitsRef);
 	void sendMessage(char *msg, int client);
     static void serverCmd(int clientID, string cmd);
 	static void *consoleThread(void *arg);
