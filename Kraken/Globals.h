@@ -21,7 +21,7 @@ static char THIS_FILE[] = __FILE__;
 #define DL_CLOSE(h) FreeLibrary((HMODULE)h)
 #define DL_SYM(h,n)  GetProcAddress((HMODULE)h,n)
 #define DL_EXT ".dll"
-#define KRAKEN_VERSION "($Revision: 19 $, g3gg0.de, win32)"
+#define KRAKEN_VERSION "($Revision$, g3gg0.de, win32)"
 #else
 #include <dlfcn.h>
 #define DL_OPEN(x)   dlopen (x,RTLD_LAZY | RTLD_GLOBAL)
