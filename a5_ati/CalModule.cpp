@@ -1,5 +1,9 @@
+
 #include "CalModule.h"
+
 #include <stdio.h>
+
+#include "Globals.h"
 
 CalModule::CalModule(CALcontext* ctx) :
     mCtx(ctx),

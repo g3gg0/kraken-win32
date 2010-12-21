@@ -1,5 +1,9 @@
+
 #include "Advance.h"
+
 #include <stdio.h>
+
+#include "Globals.h"
 
 /* Reverse bit order of an unsigned 64 bits int */
 uint64_t Advance::ReverseBits(uint64_t r)

@@ -3,6 +3,7 @@
 #include "Bidirectional.h"
 #include "TheMatrix.h"
 
+#include "Globals.h"
 
 int find_kc(uint64_t stop, uint32_t pos, uint32_t framecount, uint32_t framecount2, char* testbits, unsigned char *keydata )
 {

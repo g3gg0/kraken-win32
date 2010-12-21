@@ -1,6 +1,6 @@
-#define _FILE_OFFSET_BITS 64
 
 #include "NcqDevice.h"
+
 #include <assert.h>
 #include <unistd.h>
 #include <fcntl.h>
@@ -13,12 +13,24 @@
 #include <stdio.h>
 #include <string.h>
 
+#include "Globals.h"
+
+
 NcqDevice::NcqDevice(const char* pzDevNode)
 {
+    mRunning = false;
+	mRequestCountTotal = 0;
 	mStartSector = 0;
+	
+	for(int cluster = 0; cluster < REQUEST_CLUSTERS; cluster++)
+	{
+		mRequestCount[cluster] = 0;
+	}
 
 	mDeviceName = strdup(pzDevNode);
 	char *offsetstr = strchr(mDeviceName, '+');
+
+	strcpy(mDeviceStats, "(idle)");
 
     /* if the device name contains <device>+<number> like \.\\PhysicalDevice+63
      * then use this number as sector offset on the disk.
@@ -92,6 +104,11 @@ NcqDevice::NcqDevice(const char* pzDevNode)
 	pthread_create(&mWorker, NULL, thread_stub, (void*)this);
 }
 
+
+bool NcqDevice::isRunning()
+{
+	return mRunning;
+}
     
 NcqDevice::~NcqDevice()
 {
@@ -114,6 +131,9 @@ void* NcqDevice::thread_stub(void* arg)
     }
     return NULL;
 }
+
+int maxBlocks = MAX_BLOCKS;
+int clusterSize = maxBlocks/REQUEST_CLUSTERS;
  
 void NcqDevice::Request(class NcqRequestor* req, uint64_t blockno)
 {
@@ -127,7 +147,13 @@ void NcqDevice::Request(class NcqRequestor* req, uint64_t blockno)
     request_t qr;
     qr.req = req;
     qr.blockno = blockno;
-    mRequests.push(qr);
+
+	int cluster = (blockno / clusterSize) % REQUEST_CLUSTERS;
+
+	mRequests[cluster].push(qr);
+	mRequestCount[cluster]++;
+	mRequestCountTotal++;
+
     sem_post(&mMutex);
 #endif
 }
@@ -140,12 +166,64 @@ void NcqDevice::Cancel(class NcqRequestor*)
 void NcqDevice::Clear()
 {
     sem_wait(&mMutex);
-	while(mRequests.size() > 0)
+	
+	for(int cluster = 0; cluster < REQUEST_CLUSTERS; cluster++)
 	{
-		mRequests.pop();
+		while(mRequests[cluster].size() > 0)
+		{
+			mRequests[cluster].pop();
+		}
 	}
     sem_post(&mMutex);
 }
+
+
+char* NcqDevice::GetDeviceStats()
+{
+	return mDeviceStats;
+}
+
+bool NcqDevice::HasNextRequest()
+{
+	return mRequestCountTotal > 0;
+}
+
+int LastCluster = 0;
+
+bool NcqDevice::GetNextRequest(request_t *req)
+{
+	int processed = LastCluster;
+
+	for(int cluster = 0; cluster < REQUEST_CLUSTERS; cluster++)
+	{
+		if(mRequestCount[processed] > 0)
+		{
+			break;
+		}
+		processed++;
+		processed %= REQUEST_CLUSTERS;
+	}
+
+	LastCluster = processed;
+
+	if(mRequestCount[processed] > 0)
+	{
+		request_t qr = mRequests[processed].front();
+		mRequests[processed].pop();
+		mRequestCount[processed]--;
+		mRequestCountTotal--;
+
+		req->blockno = qr.blockno;
+		req->req = qr.req;
+
+		return true;
+	}
+
+	req->blockno = NULL;
+	req->req = NULL;
+	return false;
+}
+
 
 void NcqDevice::WorkerThread()
 {
@@ -161,14 +239,16 @@ void NcqDevice::WorkerThread()
         sem_wait(&mMutex);
 
         /* schedule requests */
-        while ((mFreeMap>=0)&&(mRequests.size()>0))
+        while ((mFreeMap>=0)&&(HasNextRequest()))
         {
 			queued = true;
 
             int free = mFreeMap;
             mFreeMap = mMappings[free].next_free;
-            request_t qr = mRequests.front();
-            mRequests.pop();
+
+            request_t qr;
+			GetNextRequest(&qr);
+
             mMappings[free].req = qr.req;
             mMappings[free].blockno = qr.blockno;
 
@@ -181,7 +261,8 @@ void NcqDevice::WorkerThread()
 			int err = GetLastError();
 			if(ret == FALSE && (err != ERROR_IO_PENDING))
 			{
-				printf (" [E] ReadFile on device '%s' failed with code %i. \r\n", mDeviceName, err);
+				mRunning = false;
+				printf (" [E] ReadFile on device '%s' failed with code %i.\r\n", mDeviceName, err);
 				printf (" [E] Aborting reader thread. No further processing possible.\r\n");
 				return;
 			}
@@ -233,12 +314,9 @@ void NcqDevice::WorkerThread()
 				float kBytes = mBlocksRead * 4.0f;
 				float seconds = diff / 1000000.0f;
 				float rate = kBytes / seconds;
-				float avgDelayMs = (mReadTime / mBlocksRead) * 1000.0f;
+				float avgAccessTime = ((float)seconds / (float)mBlocksRead) * 1000.0f;
 
-				sprintf(mDeviceStats, "%s: %iblks, %iKiB, %is, %iKiB/s", mDeviceName, (int)mBlocksRead, (int)kBytes, (int)seconds, (int)rate);
-				
-				/* TODO: perhaps we should remove that for a cleaner console */
-				//printf(" [i] Stats: %s\n", mDeviceStats);
+				sprintf(mDeviceStats, "%s: %iblks, %iKiB, %is, %iKiB/s, %0.2fms", mDeviceName, (int)mBlocksRead, (int)kBytes, (int)seconds, (int)rate, avgAccessTime);			
 			}
 
 			mBlocksRead = 0;

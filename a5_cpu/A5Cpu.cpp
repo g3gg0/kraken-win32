@@ -17,11 +17,11 @@
  *******************************************************************/
 
 #include "A5Cpu.h"
+
 #include <stdio.h>
 #include <sys/time.h>
-#ifdef WIN32
-#include <compat-win32.h>
-#endif
+
+#include "Globals.h"
 
 using namespace std;
 

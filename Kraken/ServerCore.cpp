@@ -1,12 +1,11 @@
-#include "ServerCore.h"
 
+#include "ServerCore.h"
 
 #include <stdio.h>
 #include <string.h>
 #include <sys/time.h>
 #include <sys/types.h>
 #include <fcntl.h>
-
 
 #ifndef WIN32
 #include <sys/socket.h>
@@ -18,6 +17,9 @@
 #endif
 
 #define MAX_CLIENTS 25
+
+#include "Globals.h"
+
 
 ServerCore::ServerCore(int port,dispatch cb) :
     mDispatch(cb),

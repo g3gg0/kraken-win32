@@ -1,6 +1,10 @@
+
 #include "CalDevice.h"
+
 #include <stdio.h>
 #include <assert.h>
+
+#include "Globals.h"
 
 /****
  * C++ object that ensures that Cal is initialized for the duration

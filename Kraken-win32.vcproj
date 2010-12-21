@@ -45,7 +45,7 @@
 				Name="VCCLCompilerTool"
 				FavorSizeOrSpeed="0"
 				WholeProgramOptimization="false"
-				AdditionalIncludeDirectories="compat-win32"
+				AdditionalIncludeDirectories="compat-win32; Kraken"
 				PreprocessorDefinitions="WIN32;_DEBUG;_WINDOWS;_USRDLL;EMBED_FINDKC;_CRT_SECURE_NO_WARNINGS"
 				BasicRuntimeChecks="3"
 				RuntimeLibrary="3"
@@ -125,7 +125,7 @@
 				Optimization="2"
 				FavorSizeOrSpeed="1"
 				WholeProgramOptimization="false"
-				AdditionalIncludeDirectories="compat-win32"
+				AdditionalIncludeDirectories="compat-win32; Kraken"
 				PreprocessorDefinitions="WIN32;_NDEBUG;_WINDOWS;_USRDLL;EMBED_FINDKC;_CRT_SECURE_NO_WARNINGS"
 				MinimalRebuild="true"
 				BasicRuntimeChecks="0"
@@ -205,7 +205,7 @@
 				Optimization="2"
 				FavorSizeOrSpeed="1"
 				WholeProgramOptimization="true"
-				AdditionalIncludeDirectories="compat-win32"
+				AdditionalIncludeDirectories="compat-win32; Kraken"
 				PreprocessorDefinitions="WIN32;NDEBUG;_WINDOWS;_USRDLL;EMBED_FINDKC;_CRT_SECURE_NO_WARNINGS"
 				BasicRuntimeChecks="0"
 				RuntimeLibrary="0"
@@ -290,7 +290,7 @@
 				EnableIntrinsicFunctions="false"
 				FavorSizeOrSpeed="0"
 				WholeProgramOptimization="false"
-				AdditionalIncludeDirectories="compat-win32"
+				AdditionalIncludeDirectories="compat-win32; Kraken"
 				PreprocessorDefinitions="WIN32;NDEBUG;_WINDOWS;_USRDLL;EMBED_FINDKC;_CRT_SECURE_NO_WARNINGS"
 				BasicRuntimeChecks="3"
 				RuntimeLibrary="3"
@@ -394,6 +394,10 @@
 			</File>
 			<File
 				RelativePath=".\Kraken\Fragment.h"
+				>
+			</File>
+			<File
+				RelativePath=".\Kraken\Globals.h"
 				>
 			</File>
 			<File

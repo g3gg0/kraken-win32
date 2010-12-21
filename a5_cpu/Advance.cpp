@@ -1,4 +1,7 @@
+
 #include "Advance.h"
+
+#include "Globals.h"
 
 /* Reverse bit order of an unsigned 64 bits int */
 uint64_t Advance::ReverseBits(uint64_t r)
@@ -45,8 +48,6 @@ Advance::Advance(unsigned int id, unsigned int size)
         mRFtable[2*i+1] = (unsigned int)(r2>>32);
         r = AdvanceRFlfsr(r);
     }
-
-
 }
 
 Advance::~Advance()

@@ -1,4 +1,6 @@
+
 #include "Kraken.h"
+
 #include "Fragment.h"
 #include <stdio.h>
 #include <string>
@@ -9,14 +11,8 @@
 #include "../a5_cpu/A5CpuStubs.h"
 #include "../a5_ati/A5AtiStubs.h"
 
+#include "Globals.h"
 
-#ifdef WIN32
-#define KRAKEN_VERSION "($Revision$, g3gg0.de, win32)"
-#define DL_EXT ".dll"
-#else
-#define KRAKEN_VERSION ""
-#define DL_EXT ".so"
-#endif
 
 /* g3gg0: hardcore-link to find_kc. someone should clean this up. */
 int find_kc(uint64_t stop, uint32_t pos, uint32_t framecount, uint32_t framecount2, char* testbits, unsigned char *keydata );
@@ -27,6 +23,7 @@ Kraken::Kraken(const char* config, int server_port) :
     mNumDevices(0)
 {
     assert (mInstance==NULL);
+	mRunning = false;
     mInstance = this;
 	mRequestId = 0;
 
@@ -65,16 +62,22 @@ Kraken::Kraken(const char* config, int server_port) :
         if (pFile[pos]) {
             size_t len = strlen(&pFile[pos]);
             if (strncmp(&pFile[pos],"Device:",7)==0) {
-                //printf("%s\n", &pFile[pos]);
                 const char* ch1 = strchr(&pFile[pos],' ');
                 if (ch1) {
                     ch1++;
                     const char* ch2 = strchr(ch1,' ');
                     string devname(ch1,ch2-ch1);
-                    //printf("%s\n", devname.c_str());
+
+					NcqDevice *dev = new NcqDevice(devname.c_str());
+					if(!dev->isRunning())
+					{
+						printf(" [E] Failed to initialize device. Aborting.\r\n");
+						return;
+					}
+
                     mNumDevices++;
                     mDevices.reserve(mNumDevices);
-                    mDevices.push_back(new NcqDevice(devname.c_str()));
+                    mDevices.push_back(dev);
                 }
             }
             else if (strncmp(&pFile[pos],"Table:",6)==0) {
@@ -93,20 +96,18 @@ Kraken::Kraken(const char* config, int server_port) :
 
                 if(devno>=(unsigned int)mNumDevices)
 				{
-					printf("\r\n");
-					printf("|| dev: %u, adv: %u, offset: %llu\n", devno, advance, offset );
-					printf(" \\ INVALID DRIVE NUMBER!\r\n");
+					printf(" [E] Invalild drive number. dev: %u, adv: %u, off: %llu\r\n", devno, advance, offset );
+					printf(" [E] Failed to initialize table. Aborting.\r\n");
 					return;
 				}
+
                 char num[32];
                 sprintf( num,"/%u.idx", advance );
                 string indexFile = string(config)+string(num);
-                // if (advance==340) {
-                {
-                    DeltaLookup* dl = new DeltaLookup(mDevices[devno],indexFile);
-                    dl->setBlockOffset(offset);
-                    mTables.push_back( pair<unsigned int, DeltaLookup*>(advance, dl) );
-                }
+
+                DeltaLookup* dl = new DeltaLookup(mDevices[devno],indexFile);
+                dl->setBlockOffset(offset);
+                mTables.push_back( pair<unsigned int, DeltaLookup*>(advance, dl) );                
             }
             pos += len;
         }
@@ -203,6 +204,7 @@ bool Kraken::Tick()
     }
 
     sem_wait(&mMutex);
+	MEMCHECK();
 
 	/* finished current job and have no more work packages to assign? */
     if (mFragments.size()==0 && mSubmittedStartValue.size() == 0)
@@ -398,6 +400,7 @@ bool Kraken::Tick()
 		} while(assigned && mSubmittedStartValue.size()>0);
 	}
 
+	MEMCHECK();
     sem_post(&mMutex);
     return mBusy;
 }
@@ -481,6 +484,7 @@ void Kraken::reportFind(uint64_t result, int bitPos, int count, int countRef, ch
 		}
 	}
 
+	MEMCHECK();
 	//printf(found.c_str());
 }
 /* 
@@ -500,6 +504,7 @@ void Kraken::reportFind(uint64_t result, int bitPos, int count, int countRef, ch
  *   211 - idle response
  *   212 - cancelling positive response
  *   213 - faking response
+ *   214 - stats response
  *   
  */
 
@@ -540,6 +545,27 @@ void Kraken::serverCmd(int clientID, string cmd)
 		}
 
 		sprintf(msg, "210 Kraken server (%i jobs in queue, %i processed, %i keys found, %i not found)\r\n", queued, kraken->mRequests, kraken->mFoundKc, kraken->mFailedKc);
+	}
+    else if (!strncmp(command,"stats",5))
+	{
+		int size = 512;
+		char *buffer = (char*)malloc(size);
+		
+		strcpy(buffer, "214 ");
+
+		for (int i=0; i<kraken->mNumDevices; i++) {
+			strcat(buffer,kraken->mDevices[i]->GetDeviceStats());
+			strcat(buffer," - ");
+
+			size += strlen(buffer) + 1;
+			buffer = (char*)realloc(buffer, size);
+		}
+		strcat(buffer,"\r\n");
+
+		size = strlen(buffer) + 1;
+		buffer = (char*)realloc(buffer, size);
+
+		strncpy(msg, buffer, (size >= sizeof(msg))?(sizeof(msg)-1):(size));
 	}
     else if (!strncmp(command,"crack",5))
 	{
@@ -591,7 +617,7 @@ void Kraken::serverCmd(int clientID, string cmd)
 		}
 		else
 		{
-	        sprintf(msg, "400 Sorry, you may not shutdown the beast remotely for obvious reasons\r\n" );
+	        sprintf(msg, "400 Sorry, you may not shutdown the beast remotely for obvious reason\r\n" );
 		}
     }
 	else
@@ -609,7 +635,7 @@ void *Kraken::consoleThread(void *arg)
 
     printf("\n");
     printf("Kraken Server "KRAKEN_VERSION" running\n");
-    printf("Commands are: crack test status fake cancel quit\n");
+    printf("Commands are: crack test status stats fake cancel quit\n");
     printf("\n");
 	printf("Kraken> ");
 

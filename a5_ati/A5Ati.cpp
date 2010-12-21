@@ -17,6 +17,7 @@
  *******************************************************************/
 
 #include "A5Ati.h"
+
 #include <stdio.h>
 #include <sys/time.h>
 #include "A5Slice.h"
@@ -27,12 +28,11 @@
 #include <pthread.h>
 #ifndef WIN32
 #include <sys/wait.h>
-#else
-#include <compat-win32.h>
 #endif
 
 using namespace std;
 
+#include "Globals.h"
 
 /**
  * Construct an instance of A5 Ati searcher
@@ -305,6 +305,7 @@ void AtiA5::Process(void)
             usleep(0);
         }
 
+		MEMCHECK();
         if (!mRunning) break;
     }
     

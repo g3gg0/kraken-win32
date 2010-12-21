@@ -1,6 +1,6 @@
-#define _FILE_OFFSET_BITS 64
 
 #include "DeltaLookup.h"
+
 #include "NcqDevice.h"
 #include <iostream>
 #include <stdio.h>
@@ -10,6 +10,8 @@
 #include <stdlib.h>
 #include <unistd.h>
 #include <stropts.h>
+
+#include "Globals.h"
 
 #define READ8()\
     bits = (mBitBuffer>>(mBitCount-8))&0xff;                 \
@@ -55,15 +57,15 @@ DeltaLookup::DeltaLookup(NcqDevice* dev, std::string index)
 	/* then allocate structures according to that size */
     mBlockIndexEntries = index_file_entries + 1;
     mBlockIndexSize = mBlockIndexEntries * sizeof(int);
-    mBlockIndex = (int*)malloc(mBlockIndexSize);
+    mBlockIndex = (int*)malloc((size_t) mBlockIndexSize);
 	mBlockIndex[mBlockIndexEntries-1] = 0;
 
 	mPrimaryIndexEntries = (index_file_entries/256) + 1;
     mPrimaryIndexSize = mPrimaryIndexEntries * sizeof(int64_t);
-    mPrimaryIndex = (uint64_t*)malloc(mPrimaryIndexSize);
+    mPrimaryIndex = (uint64_t*)malloc((size_t) mPrimaryIndexSize);
 	mPrimaryIndex[mPrimaryIndexEntries-1] = 0;
 
-	size_t alloced = mBlockIndexSize + mPrimaryIndexSize;
+	size_t alloced = (size_t) (mBlockIndexSize + mPrimaryIndexSize);
 
 	/* throw proper error messages */
 	if (mBlockIndex==NULL || mPrimaryIndex==NULL) {
@@ -93,8 +95,8 @@ DeltaLookup::DeltaLookup(NcqDevice* dev, std::string index)
 			fread(&mStepSize, sizeof(int64_t), 1, cachefd);
 			fread(&mLowEndpoint, sizeof(uint64_t), 1, cachefd);
 			fread(&mHighEndpoint, sizeof(uint64_t), 1, cachefd);
-			fread(mBlockIndex, mBlockIndexSize, 1, cachefd);
-			fread(mPrimaryIndex, mPrimaryIndexSize, 1, cachefd);
+			fread(mBlockIndex, (size_t) mBlockIndexSize, 1, cachefd);
+			fread(mPrimaryIndex, (size_t) mPrimaryIndexSize, 1, cachefd);
 			cached = true;
 		}
 		fclose(cachefd);
@@ -105,7 +107,7 @@ DeltaLookup::DeltaLookup(NcqDevice* dev, std::string index)
 		printf("(caching)");
 		fflush(stdout);
 
-		uint64_t *buffer = (uint64_t*)malloc(index_file_size);
+		uint64_t *buffer = (uint64_t*)malloc((size_t) index_file_size);
 
 		if (buffer == NULL) {
 			printf("(%s:%i) Failed allocating memory\r\n", __FILE__, __LINE__);
@@ -120,7 +122,7 @@ DeltaLookup::DeltaLookup(NcqDevice* dev, std::string index)
 		int64_t last = 0;
 
 		/* read the whole file at once to speed up loading */
-		size_t read_blocks = fread(buffer,index_file_size,1,indexfd);
+		size_t read_blocks = fread(buffer,(size_t) index_file_size,1,indexfd);
 
 		if(read_blocks != 1) {
 			printf("(%s:%i) Failed reading index file\r\n", __FILE__, __LINE__);
@@ -163,8 +165,8 @@ DeltaLookup::DeltaLookup(NcqDevice* dev, std::string index)
 			fwrite(&mStepSize, sizeof(int64_t), 1, cachefd);
 			fwrite(&mLowEndpoint, sizeof(uint64_t), 1, cachefd);
 			fwrite(&mHighEndpoint, sizeof(uint64_t), 1, cachefd);
-			fwrite(mBlockIndex, mBlockIndexSize, 1, cachefd);
-			fwrite(mPrimaryIndex, mPrimaryIndexSize, 1, cachefd);
+			fwrite(mBlockIndex, (size_t) mBlockIndexSize, 1, cachefd);
+			fwrite(mPrimaryIndex, (size_t) mPrimaryIndexSize, 1, cachefd);
 			fclose(cachefd);
 		}
 	}
@@ -220,10 +222,9 @@ uint64_t DeltaLookup::StartEndpointSearch(NcqRequestor* req, uint64_t end, uint6
     int count = 0;
     bl = bl * 256;
 
-	/* have seen a crash in the loop below due to beyond-array access. reason unknown. check before loop... */
+	/* check index variable before entering the loop... */
 	if(bl+1 >= mBlockIndexEntries)
 	{
-		printf(" [E] Accessing array beyond end in %s:%i\n", __FILE__, __LINE__);
 		return 0ULL;
 	}
 
@@ -236,7 +237,6 @@ uint64_t DeltaLookup::StartEndpointSearch(NcqRequestor* req, uint64_t end, uint6
 		/* ... and make sure the index does not get larger than the array is */
 		if(bl+1 >= mBlockIndexEntries)
 		{
-			printf(" [E] Accessing array beyond end in %s:%i\n", __FILE__, __LINE__);
 			return 0ULL;
 		}
         delta = (mStepSize + mBlockIndex[bl+1])<<12;

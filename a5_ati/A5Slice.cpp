@@ -17,6 +17,7 @@
  *******************************************************************/
 
 #include "A5Slice.h"
+
 #include <assert.h>
 #include <sys/time.h>
 #include <iostream>
@@ -24,6 +25,8 @@
 #include <stdio.h>
 
 #include "kernelLib.h"
+
+#include "Globals.h"
 
 #define DISASSEMBLE 0
 

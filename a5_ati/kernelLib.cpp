@@ -1,3 +1,4 @@
+
 #include <stdio.h>
 #include <malloc.h>
 #include <assert.h>
@@ -8,6 +9,8 @@
 #include <stdlib.h>
 #include <windows.h>
 #endif
+
+#include "Globals.h"
 
 extern "C" {
 #ifdef HAVE_ZLIB

@@ -1,19 +1,9 @@
+
 #include "A5CpuStubs.h"
+
 #include <stdio.h>
 
-#ifdef WIN32
-#include <compat-win32.h>
-#define DL_OPEN(n) LoadLibraryA(n)
-#define DL_CLOSE(h) FreeLibrary((HMODULE)h)
-#define DL_SYM(h,n)  GetProcAddress((HMODULE)h,n)
-#define DL_EXT ".dll"
-#else
-#include <dlfcn.h>
-#define DL_OPEN(x)   dlopen (x,RTLD_LAZY | RTLD_GLOBAL)
-#define DL_CLOSE     dlclose
-#define DL_SYM       dlsym
-#define DL_EXT ".so"
-#endif
+#include "Globals.h"
 
 static bool isDllLoaded = false;
 static bool isDllError  = false;
