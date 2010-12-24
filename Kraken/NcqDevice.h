@@ -40,6 +40,7 @@ public:
     ~NcqDevice();
 
 	bool isRunning();
+	uint64_t getMaxBlockNum() { return mMaxBlockNum; }
 	char* GetDeviceStats();
     void Request(class NcqRequestor*, uint64_t blockno);
     void Cancel(class NcqRequestor*);
@@ -79,6 +80,7 @@ private:
 	char *mDeviceName;
 	char mDeviceStats[512];
 	uint64_t mStartSector;
+	uint64_t mMaxBlockNum;
     unsigned char mBuffer[4096];
     mapRequest_t mMappings[NCQ_REQUESTS];
 

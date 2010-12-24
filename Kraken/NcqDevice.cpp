@@ -43,6 +43,8 @@ NcqDevice::NcqDevice(const char* pzDevNode)
 
 	printf(" [x] Opening device '%s', start sector %Lu\r\n", mDeviceName, mStartSector);
 
+	uint64_t diskSize = 0;
+
 #ifdef WIN32
 	mDevice = CreateFileA(mDeviceName, GENERIC_READ, FILE_SHARE_READ | FILE_SHARE_WRITE, NULL, OPEN_EXISTING, FILE_FLAG_OVERLAPPED | FILE_FLAG_RANDOM_ACCESS, NULL);
 
@@ -58,7 +60,19 @@ NcqDevice::NcqDevice(const char* pzDevNode)
 	char tstBuf[4096];
 	DWORD tstRead = 0;
 	HANDLE tstHandle = CreateFileA(mDeviceName, GENERIC_READ, FILE_SHARE_READ | FILE_SHARE_WRITE, NULL, OPEN_EXISTING, FILE_FLAG_RANDOM_ACCESS, NULL);
-	BOOL tstRet = ReadFile(tstHandle, tstBuf, 4096, &tstRead, NULL) ;
+	BOOL tstRet = ReadFile(tstHandle, tstBuf, 4096, &tstRead, NULL);
+	DISK_GEOMETRY pdg;
+	DWORD junk;
+
+	/* get disk size */
+ 	if(!DeviceIoControl(tstHandle,IOCTL_DISK_GET_DRIVE_GEOMETRY,NULL, 0, &pdg, sizeof(pdg), &junk, (LPOVERLAPPED) NULL))
+	{
+		CloseHandle(mDevice);
+		printf(" [E] Failed to size of data disk '%s'.\r\n", pzDevNode);
+		printf(" [E] Maybe you are not Administrator or have no administrative rights?\r\n");
+		return;
+	}
+	diskSize = pdg.Cylinders.QuadPart * (ULONG)pdg.TracksPerCylinder * (ULONG)pdg.SectorsPerTrack * (ULONG)pdg.BytesPerSector;
 
 	CloseHandle(tstHandle);
 
@@ -69,6 +83,9 @@ NcqDevice::NcqDevice(const char* pzDevNode)
 		printf(" [E] Maybe you are not Administrator or have no administrative rights?\r\n");
 		return;
 	}
+
+	/* calc max block number */
+	mMaxBlockNum = (diskSize - (mStartSector * 512)) / 4096;
 #else
     mDevice = open(mDeviceName,O_RDONLY/*|O_BINARY*/);
 
@@ -77,6 +94,9 @@ NcqDevice::NcqDevice(const char* pzDevNode)
 		printf(" [E] Failed to open data disk '%s'\r\n", pzDevNode);
 		return;
 	}
+	
+	/* todo */
+	mMaxBlockNum = diskSize / 4096;
 #endif
 
     /* Set up free list */
@@ -281,7 +301,7 @@ void NcqDevice::WorkerThread()
                 if (ret == TRUE && bytesRead == 4096) 
 				{
 					mBlocksRead++;
-                    mMappings[i].req->processBlock(mMappings[i].buffer);
+					mMappings[i].req->processBlock(mMappings[i].buffer);
                     mMappings[i].req = NULL;
 
                     /* Add to free list */

@@ -149,7 +149,7 @@ A5Slice::A5Slice(AtiA5* cont, int dev, int dp, int rounds, int pipe_mult) :
 		return;
     }
     *dataPtr = mIterCount;   /* Number of rounds */
-    printf(" [x] A5Ati:   [%i] Running %i rounds per kernel invocation.\n", mDevNo, *dataPtr);
+    printf(" [x] A5Ati:   [%i] Running %i rounds per kernel invocation.\n", mDevNo, mIterCount);
     calResUnmap(*mConstCount);
 
     mModule->Bind( "cb0", mConstCount );
@@ -199,7 +199,7 @@ A5Slice::A5Slice(AtiA5* cont, int dev, int dp, int rounds, int pipe_mult) :
 
     memset( mControl, 0, mNum*sizeof(unsigned int) );
 
-	printf(" [x] A5Ati:   [%i] Threads: %i\n", mDevNo, mNum );
+	printf(" [x] A5Ati:   [%i] Using %i threads\n", mDevNo, mNum );
 
 	mUsable = true;
 };
@@ -550,7 +550,7 @@ bool A5Slice::tick()
             CALuint pitch = 0;
             if (calResMap((CALvoid**)&mState, &pitch, *mResStateRemote, 0) != CAL_RESULT_OK) 
             {
-                assert(!" [x] A5Ati: Can't map mConstCount resource");
+                assert(!" [E] A5Ati: Can't map mConstCount resource");
             }
 
             // Do the actual CPU processing

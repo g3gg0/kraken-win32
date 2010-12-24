@@ -430,8 +430,7 @@ void Kraken::removeFragment(Fragment* frag)
 }
 
 void Kraken::sendMessage(char *msg, int client)
-{
-	
+{	
 	/* make sure the console input interface does not corrupt our output */
 	sem_wait(&mConsoleMutex);
 
@@ -487,6 +486,58 @@ void Kraken::reportFind(uint64_t result, int bitPos, int count, int countRef, ch
 	MEMCHECK();
 	//printf(found.c_str());
 }
+
+
+class KrakenPerfDisk : NcqRequestor {
+
+private:
+	uint64_t mRequestsRunning;
+	vector<NcqDevice*> mDevices;
+	Kraken *mKraken;
+    sem_t mMutex;
+	int mClient;
+
+public:
+	KrakenPerfDisk(Kraken *kraken, int clientID, vector<NcqDevice*> devices)
+	{
+		sem_init( &mMutex, 0, 1 );
+		mKraken = kraken;
+		mClient = clientID;
+		mDevices = devices;
+		mRequestsRunning = 0;   
+		
+		srand( (unsigned)time( NULL ) );
+	}
+
+    void Start(uint64_t requests)
+	{
+		sem_wait(&mMutex);
+		for (uint64_t req=0; req<requests; req++) {
+			for (int i=0; i<mDevices.size(); i++) {
+				uint64_t blockNo = (double)rand() / (RAND_MAX + 1) * (mDevices[i]->getMaxBlockNum());
+
+				mDevices[i]->Request(this, blockNo);
+				mRequestsRunning++;
+			}
+		}
+		sem_post(&mMutex);
+	}
+
+	void KrakenPerfDisk::processBlock(const void* pDataBlock)
+	{
+		sem_wait(&mMutex);
+		mRequestsRunning--;
+
+		if(!mRequestsRunning)
+		{
+			mKraken->sendMessage("216 Performance test finished. Retrieve resulsts with 'stats'\r\n", mClient);
+		}
+		sem_post(&mMutex);
+	}
+};
+
+
+
 /* 
  * Kraken Status codes:
  * 
@@ -505,6 +556,8 @@ void Kraken::reportFind(uint64_t result, int bitPos, int count, int countRef, ch
  *   212 - cancelling positive response
  *   213 - faking response
  *   214 - stats response
+ *   215 - perf response
+ *   216 - perf result
  *   
  */
 
@@ -618,6 +671,33 @@ void Kraken::serverCmd(int clientID, string cmd)
 		else
 		{
 	        sprintf(msg, "400 Sorry, you may not shutdown the beast remotely for obvious reason\r\n" );
+		}
+    }
+    else if (!strncmp(command,"perf",4))
+	{
+        const char* ch = command + 4;
+        while (*ch && (*ch==' ')) ch++;
+
+		if(!strncmp(ch,"disk",4))
+		{
+			unsigned long seeks = 2000;
+			ch = ch + 4;
+			while (*ch && (*ch==' ')) ch++;
+
+			if(*ch && sscanf(ch, "%lu", &seeks) != 1)
+			{
+	            sprintf(msg, "400 Bad request\r\n" );
+			}
+			else
+			{
+				sprintf(msg, "215 Starting disk performance test. (%lu seeks)\r\n", seeks );
+				KrakenPerfDisk *perf = new KrakenPerfDisk(kraken, clientID, kraken->mDevices);
+				perf->Start(seeks);
+			}
+		}
+		else
+		{
+            sprintf(msg, "400 Bad request\r\n" );
 		}
     }
 	else
