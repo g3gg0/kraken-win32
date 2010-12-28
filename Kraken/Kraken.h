@@ -59,6 +59,7 @@ private:
     map<Fragment*,int> mFragments;
     static Kraken* mInstance;
     sem_t mMutex;
+	sem_t mSpinlock;
     sem_t mConsoleMutex;
 	pthread_t mConsoleThread;
 

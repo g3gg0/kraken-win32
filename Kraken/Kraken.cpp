@@ -119,7 +119,8 @@ Kraken::Kraken(const char* config, int server_port) :
 
     /* Init semaphore */
     sem_init( &mMutex, 0, 1 );
-    sem_init( &mConsoleMutex, 0, 1 );
+    sem_init( &mSpinlock, 0, 1 );
+	sem_init( &mConsoleMutex, 0, 1 );
 
     A5CpuInit(8, 12, 4);
     mUsingAti = A5AtiInit(8,12,0xffffffff,1);
@@ -203,8 +204,8 @@ bool Kraken::Tick()
         }
     }
 
-    sem_wait(&mMutex);
 	MEMCHECK();
+    sem_wait(&mMutex);
 
 	/* finished current job and have no more work packages to assign? */
     if (mFragments.size()==0 && mSubmittedStartValue.size() == 0)
@@ -402,19 +403,32 @@ bool Kraken::Tick()
 
 	MEMCHECK();
     sem_post(&mMutex);
+
     return mBusy;
 }
 
 void Kraken::clearFragments()
 {
+	/* first stop somewhere in the processing loop */
+	for (unsigned int i=0; i<mDevices.size(); i++) {
+		mDevices[i]->Pause();
+    }
+
+	/* now clear all fragments that are somewhere being processed */
     sem_wait(&mMutex);
 	mFragments.clear();
 	A5CpuClear();
 	A5AtiClear();
     sem_post(&mMutex);
 
+	/* now cancel all disk transfers */
 	for (unsigned int i=0; i<mDevices.size(); i++) {
 		mDevices[i]->Clear();
+    }
+	
+	/* and let the wheel spin again */
+	for (unsigned int i=0; i<mDevices.size(); i++) {
+		mDevices[i]->Unpause();
     }
 }
 
@@ -514,7 +528,7 @@ public:
 		sem_wait(&mMutex);
 		for (uint64_t req=0; req<requests; req++) {
 			for (int i=0; i<mDevices.size(); i++) {
-				uint64_t blockNo = (double)rand() / (RAND_MAX + 1) * (mDevices[i]->getMaxBlockNum());
+				uint64_t blockNo = (uint64_t)((double)rand() / (RAND_MAX + 1) * (mDevices[i]->getMaxBlockNum()));
 
 				mDevices[i]->Request(this, blockNo);
 				mRequestsRunning++;
@@ -760,7 +774,7 @@ int main(int argc, char* argv[])
     Kraken kr(argv[1], server_port);
 
     while (kr.mRunning) {
-        bool busy = kr.Tick();
+		bool busy = kr.Tick();
 
 		if(!busy)
 		{

@@ -19,13 +19,8 @@
 NcqDevice::NcqDevice(const char* pzDevNode)
 {
     mRunning = false;
-	mRequestCountTotal = 0;
+	mPaused = false;
 	mStartSector = 0;
-	
-	for(int cluster = 0; cluster < REQUEST_CLUSTERS; cluster++)
-	{
-		mRequestCount[cluster] = 0;
-	}
 
 	mDeviceName = strdup(pzDevNode);
 	char *offsetstr = strchr(mDeviceName, '+');
@@ -103,6 +98,7 @@ NcqDevice::NcqDevice(const char* pzDevNode)
     for (int i=0; i<NCQ_REQUESTS; i++) {
         mMappings[i].req = NULL;
         mMappings[i].addr = NULL;  /* idle */
+        mMappings[i].cancel = false;
         mMappings[i].next_free = i - 1;
 #ifdef WIN32
 		mMappings[i].overlapped.Offset = 0; 
@@ -114,6 +110,7 @@ NcqDevice::NcqDevice(const char* pzDevNode)
 
     /* Init semaphore */
     sem_init( &mMutex, 0, 1 );
+    sem_init( &mSpinlock, 0, 1 );
 
     /* Start worker thread */
 	mBlocksRead = 0;
@@ -151,9 +148,6 @@ void* NcqDevice::thread_stub(void* arg)
     }
     return NULL;
 }
-
-int maxBlocks = MAX_BLOCKS;
-int clusterSize = maxBlocks/REQUEST_CLUSTERS;
  
 void NcqDevice::Request(class NcqRequestor* req, uint64_t blockno)
 {
@@ -167,13 +161,7 @@ void NcqDevice::Request(class NcqRequestor* req, uint64_t blockno)
     request_t qr;
     qr.req = req;
     qr.blockno = blockno;
-
-	int cluster = (blockno / clusterSize) % REQUEST_CLUSTERS;
-
-	mRequests[cluster].push(qr);
-	mRequestCount[cluster]++;
-	mRequestCountTotal++;
-
+    mRequests.push(qr);
     sem_post(&mMutex);
 #endif
 }
@@ -182,17 +170,30 @@ void NcqDevice::Cancel(class NcqRequestor*)
 {
 }
 
+void NcqDevice::Pause()
+{
+	sem_wait(&mMutex);
+	mPaused = true;
+	sem_post(&mMutex);
+}
+
+void NcqDevice::Unpause()
+{
+	mPaused = false;
+}
+
 /* clear all pending requests */
 void NcqDevice::Clear()
 {
     sem_wait(&mMutex);
-	
-	for(int cluster = 0; cluster < REQUEST_CLUSTERS; cluster++)
+	while(mRequests.size() > 0)
 	{
-		while(mRequests[cluster].size() > 0)
-		{
-			mRequests[cluster].pop();
-		}
+		mRequests.pop();
+	}
+	
+    for (int i=0; i<NCQ_REQUESTS; i++) 
+	{
+		mMappings[i].cancel = true;
 	}
     sem_post(&mMutex);
 }
@@ -203,48 +204,6 @@ char* NcqDevice::GetDeviceStats()
 	return mDeviceStats;
 }
 
-bool NcqDevice::HasNextRequest()
-{
-	return mRequestCountTotal > 0;
-}
-
-int LastCluster = 0;
-
-bool NcqDevice::GetNextRequest(request_t *req)
-{
-	int processed = LastCluster;
-
-	for(int cluster = 0; cluster < REQUEST_CLUSTERS; cluster++)
-	{
-		if(mRequestCount[processed] > 0)
-		{
-			break;
-		}
-		processed++;
-		processed %= REQUEST_CLUSTERS;
-	}
-
-	LastCluster = processed;
-
-	if(mRequestCount[processed] > 0)
-	{
-		request_t qr = mRequests[processed].front();
-		mRequests[processed].pop();
-		mRequestCount[processed]--;
-		mRequestCountTotal--;
-
-		req->blockno = qr.blockno;
-		req->req = qr.req;
-
-		return true;
-	}
-
-	req->blockno = NULL;
-	req->req = NULL;
-	return false;
-}
-
-
 void NcqDevice::WorkerThread()
 {
 #ifdef WIN32
@@ -254,25 +213,28 @@ void NcqDevice::WorkerThread()
     while (mRunning)
 	{
 		bool queued = false;
-        usleep(500);
+		do
+		{
+			usleep(500);
+		} while(mPaused);
 
         sem_wait(&mMutex);
 
         /* schedule requests */
-        while ((mFreeMap>=0)&&(HasNextRequest()))
+        while ((mFreeMap>=0)&&(mRequests.size()>0))
         {
 			queued = true;
 
             int free = mFreeMap;
             mFreeMap = mMappings[free].next_free;
+            request_t qr = mRequests.front();
+            mRequests.pop();
 
-            request_t qr;
-			GetNextRequest(&qr);
+			uint64_t offset = mStartSector * 512 + qr.blockno * 4096;
 
             mMappings[free].req = qr.req;
             mMappings[free].blockno = qr.blockno;
-
-			uint64_t offset = mStartSector * 512 + qr.blockno * 4096;
+			mMappings[free].cancel = false;
 			mMappings[free].overlapped.Offset = offset & 0xFFFFFFFF;
 			mMappings[free].overlapped.OffsetHigh = (offset >> 32);
 
@@ -281,15 +243,17 @@ void NcqDevice::WorkerThread()
 			int err = GetLastError();
 			if(ret == FALSE && (err != ERROR_IO_PENDING))
 			{
+		        sem_post(&mMutex);
 				mRunning = false;
 				printf (" [E] ReadFile on device '%s' failed with code %i.\r\n", mDeviceName, err);
 				printf (" [E] Aborting reader thread. No further processing possible.\r\n");
 				return;
 			}
         }
+
         sem_post(&mMutex);
 
-        /* Check request */
+        /* Check requests */
         for (int i=0; i<NCQ_REQUESTS; i++) 
 		{
             if (mMappings[i].req) 
@@ -301,17 +265,22 @@ void NcqDevice::WorkerThread()
                 if (ret == TRUE && bytesRead == 4096) 
 				{
 					mBlocksRead++;
-					mMappings[i].req->processBlock(mMappings[i].buffer);
+					if(!mMappings[i].cancel)
+					{
+						mMappings[i].req->processBlock(mMappings[i].buffer);
+					}
                     mMappings[i].req = NULL;
+                    mMappings[i].cancel = false;
 
                     /* Add to free list */
-                    sem_wait(&mMutex);
+                    //sem_wait(&mMutex);
                     mMappings[i].next_free = mFreeMap;
                     mFreeMap = i;
-                    sem_post(&mMutex);
+                    //sem_post(&mMutex);
                 }
             }
         }
+
 
 		/* was idle but now have jobs */
 		if(idle && queued)
@@ -391,6 +360,3 @@ void NcqDevice::WorkerThread()
     }
 #endif
 }
-
-
-

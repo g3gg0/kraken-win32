@@ -575,6 +575,8 @@ bool A5Slice::tick()
         assert(!" [E] A5Ati: State error");
     };
 
+	MEMCHECK();
+
 #if 0
     /* Ticks that has performed any action make it to here */
     mTicks++;

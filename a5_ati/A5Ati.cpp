@@ -150,6 +150,11 @@ void AtiA5::Clear()
 	mInputRoundStop.clear();
 	mInputAdvance.clear();
 	mInputContext.clear();
+	while(mOutput.size() > 0)
+	{
+		mOutput.pop();
+		mOutputContext.pop();
+	}
 	sem_post(&mMutex);
 }
   

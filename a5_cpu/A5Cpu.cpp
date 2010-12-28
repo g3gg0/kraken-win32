@@ -138,6 +138,12 @@ void A5Cpu::Clear()
 	mInputRoundStop.clear();
 	mInputAdvance.clear();
 	mInputContext.clear();
+	while (mOutput.size()>0) 
+	{
+		mOutput.pop();
+		mOutputStartRound.pop();
+		mOutputContext.pop();
+	}
 	sem_post(&mMutex);
 }
   

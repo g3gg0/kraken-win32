@@ -17,9 +17,6 @@
 #define TB *(1024ULL GB)
 
 #define NCQ_REQUESTS      64
-#define REQUEST_CLUSTERS  1
-#define MAX_BLOCKS        ((1700 GB) / 4096)
-
 using namespace std;
 
 class NcqDevice;
@@ -40,6 +37,8 @@ public:
     ~NcqDevice();
 
 	bool isRunning();
+	void Pause();
+	void Unpause();
 	uint64_t getMaxBlockNum() { return mMaxBlockNum; }
 	char* GetDeviceStats();
     void Request(class NcqRequestor*, uint64_t blockno);
@@ -56,6 +55,7 @@ public:
         uint64_t            blockno;
         int                 next_free;
         void*               addr;
+		bool				cancel;
 #ifdef WIN32
 		OVERLAPPED			overlapped;
 		char				buffer[4096];
@@ -66,11 +66,6 @@ public:
     void WorkerThread();
 
 private:
-	
-
-	static bool RequestSorter (request_t, request_t);
-	bool HasNextRequest();
-	bool GetNextRequest(request_t *);
 
 #ifdef WIN32
 	HANDLE mDevice;
@@ -83,13 +78,10 @@ private:
 	uint64_t mMaxBlockNum;
     unsigned char mBuffer[4096];
     mapRequest_t mMappings[NCQ_REQUESTS];
-
-    queue< request_t > mRequests[REQUEST_CLUSTERS];
-	int mRequestCount[REQUEST_CLUSTERS];
-	int mRequestCountTotal;
-
+    queue< request_t > mRequests;
     int mFreeMap;
     sem_t mMutex;
+	sem_t mSpinlock;
     pthread_t mWorker;
 
 	struct timeval mStartTime;
@@ -97,6 +89,7 @@ private:
 	float mReadTime;
 
     bool mRunning;
+	bool mPaused;
     char mDevC;
 };
 

@@ -3,17 +3,6 @@
 
 //#define MEMDEBUG
 
-#ifdef MEMDEBUG
-#include <crtdbg.h>
-#undef THIS_FILE
-static char THIS_FILE[] = __FILE__;
-#define new       new( _NORMAL_BLOCK, __FILE__, __LINE__)
-#define malloc(s) _malloc_dbg(s, _NORMAL_BLOCK, __FILE__, __LINE__)
-#define MEMCHECK() if(!_CrtCheckMemory()){printf("Failed in %s:%i",__FUNCTION__,__LINE__);}
-#else
-#define MEMCHECK() if(false){}
-#endif
-
 
 #ifdef WIN32
 #include <compat-win32.h>
@@ -31,6 +20,17 @@ static char THIS_FILE[] = __FILE__;
 #define KRAKEN_VERSION ""
 #endif
 
+
+#ifdef MEMDEBUG
+#include <crtdbg.h>
+#undef THIS_FILE
+static char THIS_FILE[] = __FILE__;
+#define new        new( _NORMAL_BLOCK, __FILE__, __LINE__)
+#define malloc(s)  _malloc_dbg(s, _NORMAL_BLOCK, __FILE__, __LINE__)
+#define MEMCHECK() if(!_CrtCheckMemory()){printf("Failed in %s:%i",__FUNCTION__,__LINE__);}
+#else
+#define MEMCHECK() if(false){}
+#endif
 
 
 #endif // __GLOBALS_H__
