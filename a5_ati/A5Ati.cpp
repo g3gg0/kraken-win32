@@ -40,6 +40,7 @@ using namespace std;
  */
 AtiA5::AtiA5(int max_rounds, int condition, unsigned int gpu_mask, int pipeline_mul)
 {
+	printf ( " [x] A5Ati: Compiled for '"KRAKEN_VERSION"'\r\n");
 	mUsable = false;
     mCondition = condition;
     mMaxRound = max_rounds;

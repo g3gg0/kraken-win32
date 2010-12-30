@@ -25,8 +25,6 @@ NcqDevice::NcqDevice(const char* pzDevNode)
 	mDeviceName = strdup(pzDevNode);
 	char *offsetstr = strchr(mDeviceName, '+');
 
-	strcpy(mDeviceStats, "(idle)");
-
     /* if the device name contains <device>+<number> like \.\\PhysicalDevice+63
      * then use this number as sector offset on the disk.
      */
@@ -37,6 +35,7 @@ NcqDevice::NcqDevice(const char* pzDevNode)
 	}
 
 	printf(" [x] Opening device '%s', start sector %Lu\r\n", mDeviceName, mStartSector);
+	sprintf(mDeviceStats, "%s: (no data yet)", mDeviceName);
 
 	uint64_t diskSize = 0;
 

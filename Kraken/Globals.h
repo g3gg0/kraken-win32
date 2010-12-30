@@ -1,6 +1,8 @@
 #ifndef __GLOBALS_H__
 #define __GLOBALS_H__
 
+/* random token for SVN version push: 3rsdf42t */
+
 //#define MEMDEBUG
 
 
@@ -10,7 +12,7 @@
 #define DL_CLOSE(h) FreeLibrary((HMODULE)h)
 #define DL_SYM(h,n)  GetProcAddress((HMODULE)h,n)
 #define DL_EXT ".dll"
-#define KRAKEN_VERSION "($Revision$, g3gg0.de, win32)"
+#define KRAKEN_VERSION "Kraken-win32 ($Revision$, g3gg0.de, win32)"
 #else
 #include <dlfcn.h>
 #define DL_OPEN(x)   dlopen (x,RTLD_LAZY | RTLD_GLOBAL)

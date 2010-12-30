@@ -565,13 +565,13 @@ public:
  *   400 - invalid request
  *   404 [id] - no key found for this request
  *   
- *   210 - status response
- *   211 - idle response
- *   212 - cancelling positive response
- *   213 - faking response
- *   214 - stats response
- *   215 - perf response
- *   216 - perf result
+ *   210 - response to "status"-command 
+ *   211 - response to "idle"-command
+ *   212 - response to "cancel"-command
+ *   213 - response to "fake"-command
+ *   214 - response to "stats"-command
+ *   215 - response to "perf disk"-command
+ *   216 - finished "perf disk"-command
  *   
  */
 
@@ -704,7 +704,7 @@ void Kraken::serverCmd(int clientID, string cmd)
 			}
 			else
 			{
-				sprintf(msg, "215 Starting disk performance test. (%lu seeks)\r\n", seeks );
+				sprintf(msg, "215 Starting disk performance test. (queueing %lu random reads)\r\n", seeks );
 				KrakenPerfDisk *perf = new KrakenPerfDisk(kraken, clientID, kraken->mDevices);
 				perf->Start(seeks);
 			}
@@ -728,7 +728,7 @@ void *Kraken::consoleThread(void *arg)
 	Kraken* kraken = (Kraken*)arg;
 
     printf("\n");
-    printf("Kraken Server "KRAKEN_VERSION" running\n");
+    printf("Started '"KRAKEN_VERSION"'\n");
     printf("Commands are: crack test status stats fake cancel quit\n");
     printf("\n");
 	printf("Kraken> ");
