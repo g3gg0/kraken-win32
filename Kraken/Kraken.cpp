@@ -125,7 +125,10 @@ Kraken::Kraken(const char* config, int server_port) :
     A5CpuInit(8, 12, 4);
     mUsingAti = A5AtiInit(8,12,0xffffffff,1);
 
-    mBusy = false;
+
+	gettimeofday(&mLastJobTime, NULL);
+	mBusy = false;
+	mTablesLoaded = true;
 	mCurrentId = 0;
     mCurrentClient = 0;
     mServer = NULL;
@@ -141,6 +144,32 @@ Kraken::Kraken(const char* config, int server_port) :
 Kraken::~Kraken()
 {
 	Shutdown();
+}
+
+void Kraken::UnloadTables()
+{
+	if(mTablesLoaded)
+	{
+		tableListIt it = mTables.begin();
+		while (it!=mTables.end()) {
+			(*it).second->UnloadTable();
+			it++;
+		}
+	}
+	mTablesLoaded = false;
+}
+
+void Kraken::LoadTables()
+{
+	if(!mTablesLoaded)
+	{
+		tableListIt it = mTables.begin();
+		while (it!=mTables.end()) {
+			(*it).second->LoadTable();
+			it++;
+		}
+	}
+	mTablesLoaded = true;
 }
 
 void Kraken::Shutdown()
@@ -207,6 +236,26 @@ bool Kraken::Tick()
 	MEMCHECK();
     sem_wait(&mMutex);
 
+	/* when busy, update the last job timestamp */
+	if(mBusy)
+	{
+		gettimeofday(&mLastJobTime, NULL);
+	}
+
+	/* when being idle for too long time, unload tables to save memory */
+	if(mTablesLoaded)
+	{
+		struct timeval tv;
+		gettimeofday(&tv, NULL);
+		unsigned long diff = tv.tv_sec - mLastJobTime.tv_sec;
+
+		/* idle for more than n seconds? */
+		if(diff > 60 * 30)
+		{
+			UnloadTables();
+		}
+	}
+
 	/* finished current job and have no more work packages to assign? */
     if (mFragments.size()==0 && mSubmittedStartValue.size() == 0)
 	{
@@ -254,6 +303,11 @@ bool Kraken::Tick()
         /* Start a new job if there is some order */
         if (mWorkOrders.size()>0)
 		{
+			if(!mTablesLoaded)
+			{
+				LoadTables();
+			}
+
             mBusy = true;
 			mFoundKeys = 0;
 
@@ -544,7 +598,7 @@ public:
 
 		if(!mRequestsRunning)
 		{
-			mKraken->sendMessage("216 Performance test finished. Retrieve resulsts with 'stats'\r\n", mClient);
+			mKraken->sendMessage("216 Performance test finished. Retrieve results with 'stats'\r\n", mClient);
 		}
 		sem_post(&mMutex);
 	}
@@ -563,6 +617,7 @@ public:
  *   200 [id] [key] - Kc for [id] was found
  *
  *   400 - invalid request
+ *   405 - not allowed
  *   404 [id] - no key found for this request
  *   
  *   210 - response to "status"-command 
@@ -572,6 +627,8 @@ public:
  *   214 - response to "stats"-command
  *   215 - response to "perf disk"-command
  *   216 - finished "perf disk"-command
+ *   217 - response to "suspend"-command
+ *   218 - response to "wnd_hide/show"-command
  *   
  */
 
@@ -601,6 +658,35 @@ void Kraken::serverCmd(int clientID, string cmd)
 
 		sprintf(msg, "101 %i Request queued (%i already in queue)\r\n", id, queued );
 	}
+    else if (!strncmp(command,"wnd_show",8))
+	{
+#ifdef WIN32
+		HWND hWnd = GetConsoleWindow();
+		ShowWindow( hWnd, SW_SHOW );
+		sprintf(msg, "218 Ok.\r\n");
+#endif
+	}    
+	else if (!strncmp(command,"wnd_hide",8))
+	{	
+#ifdef WIN32
+		HWND hWnd = GetConsoleWindow();
+		ShowWindow( hWnd, SW_HIDE );
+		sprintf(msg, "218 Ok.\r\n");
+#endif
+	}
+    else if (!strncmp(command,"suspend",7))
+	{
+		/* already processing one request? */
+		if(kraken->mBusy)
+		{
+			sprintf(msg, "405 Releasing memory not possible, kraken is busy.\r\n");
+		}
+		else
+		{
+			kraken->UnloadTables();
+			sprintf(msg, "217 Released memory. Will refill when next statement gets processed.\r\n");
+		}
+	}
     else if (!strncmp(command,"status",6))
 	{
 		size_t queued = kraken->mWorkOrders.size();
@@ -611,7 +697,7 @@ void Kraken::serverCmd(int clientID, string cmd)
 			queued++;
 		}
 
-		sprintf(msg, "210 Kraken server (%i jobs in queue, %i processed, %i keys found, %i not found)\r\n", queued, kraken->mRequests, kraken->mFoundKc, kraken->mFailedKc);
+		sprintf(msg, "210 Kraken server (%i jobs in queue, %i processed, %i keys found, %i not found, tables currently %s)\r\n", queued, kraken->mRequests, kraken->mFoundKc, kraken->mFailedKc, (kraken->mTablesLoaded?"in RAM":"not loaded"));
 	}
     else if (!strncmp(command,"stats",5))
 	{

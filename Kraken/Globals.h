@@ -1,24 +1,24 @@
 #ifndef __GLOBALS_H__
 #define __GLOBALS_H__
 
-/* random token for SVN version push: 3rsdf42t */
+/* random token for SVN version push: d4tarfa45tq */
 
 //#define MEMDEBUG
 
 
 #ifdef WIN32
 #include <compat-win32.h>
-#define DL_OPEN(n) LoadLibraryA(n)
-#define DL_CLOSE(h) FreeLibrary((HMODULE)h)
-#define DL_SYM(h,n)  GetProcAddress((HMODULE)h,n)
-#define DL_EXT ".dll"
+#define DL_OPEN(n)     LoadLibraryA(n)
+#define DL_CLOSE(h)    FreeLibrary((HMODULE)h)
+#define DL_SYM(h,n)    GetProcAddress((HMODULE)h,n)
+#define DL_EXT         ".dll"
 #define KRAKEN_VERSION "Kraken-win32 ($Revision$, g3gg0.de, win32)"
 #else
 #include <dlfcn.h>
-#define DL_OPEN(x)   dlopen (x,RTLD_LAZY | RTLD_GLOBAL)
-#define DL_CLOSE     dlclose
-#define DL_SYM       dlsym
-#define DL_EXT ".so"
+#define DL_OPEN(x)     dlopen (x,RTLD_LAZY | RTLD_GLOBAL)
+#define DL_CLOSE       dlclose
+#define DL_SYM         dlsym
+#define DL_EXT         ".so"
 #define KRAKEN_VERSION ""
 #endif
 

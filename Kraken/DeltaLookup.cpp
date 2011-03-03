@@ -39,12 +39,37 @@ unsigned char DeltaLookup::mBits[256];
 
 DeltaLookup::DeltaLookup(NcqDevice* dev, std::string index)
 {
+	mIndexFileName = index;
+    mDevice = dev;
+    mBlockOffset = 0ULL;
+
+	LoadTable();
+}
+
+void DeltaLookup::UnloadTable()
+{
+    if(mPrimaryIndex)
+	{
+		free(mPrimaryIndex);
+	}
+	
+    if(mBlockIndex)
+	{
+		free(mBlockIndex);
+	}
+
+    mPrimaryIndex = NULL;
+    mBlockIndex = NULL;
+}
+
+void DeltaLookup::LoadTable()
+{
     /* Load index - compress to ~41MB of alloced memory */
-    FILE* indexfd = fopen(index.c_str(),"rb");
+    FILE* indexfd = fopen(mIndexFileName.c_str(),"rb");
 
 	/* throw proper error messages */
     if (indexfd == NULL) {
-        printf("(%s:%i) Could not open %s for reading.\n", __FILE__, __LINE__, index.c_str());
+        printf("(%s:%i) Could not open %s for reading.\n", __FILE__, __LINE__, mIndexFileName.c_str());
 		return;
     }
 
@@ -75,7 +100,7 @@ DeltaLookup::DeltaLookup(NcqDevice* dev, std::string index)
 
 	/* try to load cache file */
 	bool cached = false;
-	string cachefile = index + ".cache";
+	string cachefile = mIndexFileName + ".cache";
     FILE* cachefd = fopen(cachefile.c_str(),"rb");
 
 	/* was there one? */
@@ -172,9 +197,7 @@ DeltaLookup::DeltaLookup(NcqDevice* dev, std::string index)
 	}
 
     fclose(indexfd);
-    mBlockOffset=0ULL;
 
-    mDevice = dev;
 
     if (!mInitStatics) {
         /* Fill in decoding tables */
@@ -195,6 +218,8 @@ DeltaLookup::DeltaLookup(NcqDevice* dev, std::string index)
         assert(group<256);
         mInitStatics = true;
     }
+
+	mTableLoaded = true;
 }
 
 DeltaLookup::~DeltaLookup()
@@ -207,6 +232,11 @@ DeltaLookup::~DeltaLookup()
 
 uint64_t DeltaLookup::StartEndpointSearch(NcqRequestor* req, uint64_t end, uint64_t& blockstart)
 {
+	if(!mTableLoaded)
+	{
+		return 0;
+	}
+
     if (end<mLowEndpoint) return 0ULL;
     if (end>mHighEndpoint) return 0ULL;
 
@@ -254,6 +284,11 @@ uint64_t DeltaLookup::StartEndpointSearch(NcqRequestor* req, uint64_t end, uint6
 int DeltaLookup::CompleteEndpointSearch(const void* pDataBlock, uint64_t here,
                                         uint64_t end, uint64_t& result)
 {
+	if(!mTableLoaded)
+	{
+		return 0;
+	}
+
     const unsigned char* pBuffer = (const unsigned char*)pDataBlock;
     unsigned int mBufPos = 0;
     unsigned int mBitBuffer = pBuffer[mBufPos++];

@@ -19,9 +19,14 @@ public:
     int CompleteEndpointSearch(const void* pDataBlock, uint64_t blockstart,
                                uint64_t endpoint, uint64_t& result);
 
-private:
-    NcqDevice* mDevice;
+	void LoadTable();
+	void UnloadTable();
 
+private:
+    NcqDevice* mDevice;	
+	string mIndexFileName;
+
+	bool mTableLoaded;
     int* mBlockIndex;
 	uint64_t mBlockIndexSize;
 	uint64_t mBlockIndexEntries;

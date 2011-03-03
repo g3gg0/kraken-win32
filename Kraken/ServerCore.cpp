@@ -308,7 +308,8 @@ int ClientConnection::Read(string &data)
 #else
         bytes_read = recv(mFd, &last_read, 1, 0);
 
-		if(bytes_read < 0)
+		/* win32 returns 0 when it would block */
+		if(bytes_read <= 0)
 		{
 			int err = WSAGetLastError();
 			if(err == WSAEWOULDBLOCK)

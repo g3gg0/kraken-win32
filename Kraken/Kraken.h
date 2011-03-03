@@ -30,6 +30,8 @@ public:
 	void Shutdown();
     int Crack(int client, const char* plaintext);
     bool Tick();
+	void UnloadTables();
+	void LoadTables();
 
     static Kraken* getInstance() { return mInstance; } 
     void removeFragment(Fragment* frag);
@@ -62,6 +64,7 @@ private:
 	sem_t mSpinlock;
     sem_t mConsoleMutex;
 	pthread_t mConsoleThread;
+	bool mTablesLoaded;	 
 
     queue<int> mWorkIds;
     queue<string> mWorkOrders;
@@ -77,6 +80,7 @@ private:
     bool mUsingAti;
     bool mBusy;
     struct timeval mStartTime;
+    struct timeval mLastJobTime;
     ServerCore* mServer;
 	int mFoundKeys;
 	unsigned char mKeyResult[8];
