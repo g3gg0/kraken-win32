@@ -145,6 +145,7 @@ bool AtiA5::IsIdle()
   
 void AtiA5::Clear()
 {
+	/* clear jobs */
 	sem_wait(&mMutex);
 	mInputStart.clear();
 	mInputRoundStart.clear();
@@ -156,6 +157,19 @@ void AtiA5::Clear()
 		mOutput.pop();
 		mOutputContext.pop();
 	}
+	sem_post(&mMutex);
+
+	/* wait until we are not calling the slices anymore */
+	while(!mIdle)
+	{
+		usleep(100);
+	}
+
+	/* now clear slices */
+	sem_wait(&mMutex);
+    for( int i=0; i<mNumSlices ; i++ ) {
+        mSlices[i]->Clear();
+    }
 	sem_post(&mMutex);
 }
   
@@ -232,44 +246,38 @@ bool AtiA5::PipelineInfo(int &length)
 
 bool AtiA5::Init(void)
 {
-    int core = 1;
     int numCores = CalDevice::getNumDevices();
-
-	//printf(" [x] A5Ati: Setting up %i GPUs...\n", numCores);
-    
-    mNumSlices = 1;
 	int usedSlices = 0;
     int pipes = 0;
 
+    mNumSlices = 1;
+	printf(" [x] A5Ati: Setting up %i GPUs with %i slices each...\n", numCores, mNumSlices);    
+
     mSlices = new A5Slice*[mNumSlices];
     
-    for( int i=0; usedSlices<mNumSlices && i<mNumSlices*10 ; i++ ) {
-		/* try to set up a card with a slice */
-		A5Slice *slice = new A5Slice( this, i%numCores, mCondition, mMaxRound, mPipelineMul );
+    for( int core=0; core<numCores; core++ ) {
+		for( int i=0; i<mNumSlices; i++ ) {
+			/* try to set up a card with a slice */
+			A5Slice *slice = new A5Slice( this, core, mCondition, mMaxRound, mPipelineMul );
 
-		/* check if this card was set up correctly */
-		if(slice->IsUsable())
-		{
-	        mSlices[usedSlices] = slice;
-	        pipes += 32 * slice->getNumSlots();
-			usedSlices++;
+			/* check if this card was set up correctly */
+			if(slice->IsUsable())
+			{
+				mSlices[usedSlices] = slice;
+				pipes += 32 * slice->getNumSlots();
+				usedSlices++;
+			}
+			else
+			{
+				delete slice;
+			}
 		}
-		else
-		{
-			delete slice;
-		}
+	}
 
-		/* none of the cores did set up properly */
-		if((i == (numCores-1)) && usedSlices == 0)
-		{
-			printf(" [x] A5Ati: None of the GPUs did set up properly\n");
-			return false;
-		}
-    }
-
-	if(usedSlices != mNumSlices)
-	{	
-		printf(" [x] A5Ati: Was not able to set up the slices.\n");
+	/* none of the cores did set up properly */
+	if(usedSlices == 0)
+	{
+		printf(" [x] A5Ati: None of the GPUs did set up properly\n");
 		return false;
 	}
 
@@ -282,8 +290,6 @@ bool AtiA5::Init(void)
 
 void AtiA5::Process(void)
 {
-    int numSlices = 1;
-
     for(;;) {
         bool newCmd = false;
 
@@ -309,7 +315,12 @@ void AtiA5::Process(void)
         if (!newCmd) {
             /* In wait state, ease up on the CPU in our busy loop */
             usleep(0);
+			mIdle = true;
         }
+		else
+		{
+			mIdle = false;
+		}
 
 		MEMCHECK();
         if (!mRunning) break;

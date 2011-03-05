@@ -59,6 +59,8 @@ A5Slice::A5Slice(AtiA5* cont, int dev, int dp, int rounds, int pipe_mult) :
 	mUsable = false;
     mDevNo = dev;
     mMaxCycles = (1<<mDp)*rounds*10;
+	mAvgExecTime = 0.0f;
+	mAvgProcessTime = 0.0f;
 
     // CAL setup
     assert((dev>=0)&&(dev<CalDevice::getNumDevices()));
@@ -229,6 +231,20 @@ A5Slice::~A5Slice() {
     calclFreeObject(mObject);
     delete mDev;
 }
+/* Get the state of a chain across the slices */
+void A5Slice::Clear() 
+{
+    mNumJobs = 0;
+
+    int jobs = mNum * 32;
+    mJobs = new AtiA5::JobPiece_s[jobs];
+    for(int i=0; i<jobs; i++) {
+        mJobs[i].next_free = i-1;
+        mJobs[i].idle = true;
+    }
+    mFree = jobs - 1;
+
+}
 
 /* Get the state of a chain across the slices */
 uint64_t A5Slice::getState( int block, int bit ) {
@@ -376,8 +392,6 @@ void A5Slice::setRound( int block, int bit, uint64_t v) {
  */
 void A5Slice::process()
 {
-    // printf("Process\n");
-
     for (int i=0; i<mNum; i++) {
         unsigned int control = 0;
         unsigned int todo = 0;
@@ -499,7 +513,11 @@ bool A5Slice::tick()
         mWaitState = eDMAto;
         break;
     case eDMAto:
-        if (calCtxIsEventDone(*mCtx, mEvent)==CAL_RESULT_PENDING) return false;
+        if (calCtxIsEventDone(*mCtx, mEvent)==CAL_RESULT_PENDING) 
+		{
+			return false;
+		}
+
         {
             unsigned int *dataPtr = NULL;
             CALuint pitch = 0;
@@ -523,13 +541,22 @@ bool A5Slice::tick()
         calCtxFlush(*mCtx);
         mWaitState = eKernel;
         break;
+
     case eKernel:
-        if (!mModule->Finished()) return false;
+        if (!mModule->Finished()) 
+		{
+			return false;
+		}
+
+		if(true)
         {
             struct timeval tv2;
             gettimeofday(&tv2, NULL);
             unsigned long diff = 1000000*(tv2.tv_sec-mTvStarted.tv_sec);
             diff += tv2.tv_usec-mTvStarted.tv_usec;
+
+			mAvgExecTime = (mAvgExecTime + ((double)diff) / 1000000.0f) / 2;
+
             // printf("Exec() took %i usec\n",(unsigned int)diff);
         }
         if (calMemCopy(&mEvent, *mCtx, *mMemLocal, mMemRemote, 0)!=CAL_RESULT_OK)
@@ -540,8 +567,13 @@ bool A5Slice::tick()
         calCtxIsEventDone(*mCtx, mEvent);
         mWaitState = eDMAfrom;
         break;
+
     case eDMAfrom:
-        if (calCtxIsEventDone(*mCtx, mEvent)==CAL_RESULT_PENDING) return false;
+        if (calCtxIsEventDone(*mCtx, mEvent)==CAL_RESULT_PENDING) 
+		{
+			return false;
+		}
+
         {
             struct timeval tv1;
             struct timeval tv2;
@@ -561,6 +593,8 @@ bool A5Slice::tick()
             gettimeofday(&tv2, NULL);
             unsigned long diff = 1000000*(tv2.tv_sec-tv1.tv_sec);
             diff += tv2.tv_usec-tv1.tv_usec;
+
+			mAvgProcessTime = (mAvgProcessTime + ((double)diff) / 1000000.0f) / 2;
             // printf("process() took %i usec\n",diff);
         }
         if (calMemCopy(&mEvent, *mCtx, mMemRemote, *mMemLocal, 0)!=CAL_RESULT_OK)
@@ -571,8 +605,10 @@ bool A5Slice::tick()
         calCtxIsEventDone(*mCtx, mEvent);
         mWaitState = eDMAto;
         break;
+
     default:
-        assert(!" [E] A5Ati: State error");
+        printf(" [E] A5Ati: State error");
+		return false;
     };
 
 	MEMCHECK();

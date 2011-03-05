@@ -66,6 +66,7 @@ public:
 
     bool tick();
     void flush();
+	void Clear();
 
     enum wait_state getWaitState() { return mWaitState; }
 
@@ -117,6 +118,8 @@ private:
     CALcounter    mCounter;
     int           mTicks;
     struct timeval mTvStarted;
+	double        mAvgExecTime;
+	double        mAvgProcessTime;
 
     int           mMaxCycles;
 };

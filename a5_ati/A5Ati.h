@@ -95,6 +95,7 @@ private:
     void PushResult(JobPiece_s*);
 
 	bool mUsable;
+	bool mIdle;
 	bool Init(void);
     void Process(void);
 

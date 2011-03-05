@@ -224,8 +224,7 @@ void DeltaLookup::LoadTable()
 
 DeltaLookup::~DeltaLookup()
 {
-    delete [] mBlockIndex;
-    delete [] mPrimaryIndex;
+	UnloadTable();
 }
 
 #define DEBUG_PRINT 0
@@ -250,7 +249,7 @@ uint64_t DeltaLookup::StartEndpointSearch(NcqRequestor* req, uint64_t end, uint6
 
     uint64_t here = mPrimaryIndex[bl];
     int count = 0;
-    bl = bl * 256;
+    bl <<= 8;
 
 	/* check index variable before entering the loop... */
 	if(bl+1 >= mBlockIndexEntries)

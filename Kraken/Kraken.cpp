@@ -716,9 +716,9 @@ void Kraken::serverCmd(int clientID, string cmd)
 		strcat(buffer,"\r\n");
 
 		size = strlen(buffer) + 1;
-		buffer = (char*)realloc(buffer, size);
 
 		strncpy(msg, buffer, (size >= sizeof(msg))?(sizeof(msg)-1):(size));
+		free(buffer);
 	}
     else if (!strncmp(command,"crack",5))
 	{
@@ -791,6 +791,7 @@ void Kraken::serverCmd(int clientID, string cmd)
 			else
 			{
 				sprintf(msg, "215 Starting disk performance test. (queueing %lu random reads)\r\n", seeks );
+				/* TODO: we should free this later.... */
 				KrakenPerfDisk *perf = new KrakenPerfDisk(kraken, clientID, kraken->mDevices);
 				perf->Start(seeks);
 			}
