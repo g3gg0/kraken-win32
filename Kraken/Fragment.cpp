@@ -51,7 +51,10 @@ Fragment::Fragment(uint64_t plaintext, unsigned int round,
     mNumRound(round),
     mAdvance(advance),
     mTable(table),
-    mState(0)
+    mState(0),
+    mEndpoint(0),
+    mBlockStart(0),
+    mStartIndex(0)
 {
 }
 
