@@ -270,14 +270,16 @@ ClientConnection::~ClientConnection()
 int ClientConnection::Write(string dat)
 {
     size_t remain = dat.size();
+    size_t pos = 0;
     while(remain) {
 #ifndef WIN32
-        size_t r = write(mFd, dat.c_str(), dat.size());
+        size_t r = write(mFd, &dat.c_str()[pos], remain);
 #else
-        size_t r = send(mFd, dat.c_str(), dat.size(), 0);
+        size_t r = send(mFd, &dat.c_str()[pos], remain, 0);
 #endif
         if (r<0) break;
         remain-=r;
+		pos+=r;
     }
     return 0;
 }
