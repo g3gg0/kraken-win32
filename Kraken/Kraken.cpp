@@ -629,6 +629,7 @@ public:
  *   216 - finished "perf disk"-command
  *   217 - response to "suspend"-command
  *   218 - response to "wnd_hide/show"-command
+ *   219 - response to "list"-command
  *   
  */
 
@@ -657,6 +658,25 @@ void Kraken::serverCmd(int clientID, string cmd)
         int id = kraken->Crack(clientID, "001101110011000000001000001100011000100110110110011011010011110001101010100100101111111010111100000110101001101011");
 
 		sprintf(msg, "101 %i Request queued (%i already in queue)\r\n", id, queued );
+	}    
+	else if (!strncmp(command,"list",4)) 
+	{
+        /* Return a printed list of loaded tables */
+        tableListIt it = mInstance->mTables.begin();
+        string table_list;
+        while (it!=mInstance->mTables.end()) {
+            char num[16];
+            if (table_list.size()) {
+                snprintf(num,16,",%d",(*it).first);
+                table_list = table_list+string(num);
+            } else {
+                snprintf(num,16,"%d",(*it).first);
+                table_list = string(num);
+            }
+            it++;
+        }
+        table_list = string("Tables: ")+table_list+string("\n");
+        sprintf(msg,"219 %s",table_list.c_str());
 	}
     else if (!strncmp(command,"wnd_show",8))
 	{
