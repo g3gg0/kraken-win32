@@ -86,6 +86,7 @@ private:
 	unsigned char mKeyResult[8];
 
 	unsigned int mRequestId;
+    string mTableInfo;
 
 };
 

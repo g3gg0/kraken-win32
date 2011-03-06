@@ -19,6 +19,10 @@ int find_kc(uint64_t stop, uint32_t pos, uint32_t framecount, uint32_t framecoun
 
 Kraken* Kraken::mInstance = NULL;
 
+/**
+ *  Create a singleton like instance of Kraken
+ *  Loads all table indexes into memory
+ */
 Kraken::Kraken(const char* config, int server_port) :
     mNumDevices(0)
 {
@@ -107,12 +111,22 @@ Kraken::Kraken(const char* config, int server_port) :
 
                 DeltaLookup* dl = new DeltaLookup(mDevices[devno],indexFile);
                 dl->setBlockOffset(offset);
-                mTables.push_back( pair<unsigned int, DeltaLookup*>(advance, dl) );                
+                mTables.push_back( pair<unsigned int, DeltaLookup*>(advance, dl) );
+				/* Add to TableInfo list */
+				if (mTableInfo.size()) {
+					snprintf(num,16,",%d",advance);
+					mTableInfo = mTableInfo+string(num);
+				} else {
+					snprintf(num,16,"%d",advance);
+					mTableInfo = string(num);
+				}
             }
             pos += len;
         }
         pos++;
     }
+    mTableInfo = string("Tables: ")+mTableInfo+string("\n");
+
     delete [] pFile;
 
 	printf("\r\n");
@@ -141,6 +155,9 @@ Kraken::Kraken(const char* config, int server_port) :
     pthread_create(&mConsoleThread, NULL, Kraken::consoleThread, (void*)this);
 }
 
+/**
+ *  Cleanup, and free everything.
+ */
 Kraken::~Kraken()
 {
 	Shutdown();
@@ -200,6 +217,9 @@ void Kraken::Shutdown()
 	}
 }
 
+/**
+ *  Recieve a crack command and insert into mutex protected queue.
+ */
 int Kraken::Crack(int client, const char* plaintext)
 {
 	int ret = -1;
@@ -216,6 +236,9 @@ int Kraken::Crack(int client, const char* plaintext)
 	return ret;
 }
 
+/**
+ *  Main woker thread loop
+ */
 bool Kraken::Tick()
 {
     uint64_t start_val;
@@ -486,6 +509,9 @@ void Kraken::clearFragments()
     }
 }
 
+/**
+ *  Remove and delete a fragment from the work list maps
+ */
 void Kraken::removeFragment(Fragment* frag)
 {
     sem_wait(&mMutex);
@@ -528,6 +554,9 @@ void Kraken::sendMessage(char *msg, int client)
 	sem_post(&mConsoleMutex);
 }
 
+/**
+ * Report a found key back to the issuing client
+ */
 void Kraken::reportFind(uint64_t result, int bitPos, int count, int countRef, char *bitsRef)
 {
 	unsigned char keyData[8];
@@ -633,6 +662,9 @@ public:
  *   
  */
 
+/**
+ *  Recieve and parse commands from clients
+ */
 void Kraken::serverCmd(int clientID, string cmd)
 {
 	Kraken* kraken = Kraken::getInstance();
@@ -662,21 +694,7 @@ void Kraken::serverCmd(int clientID, string cmd)
 	else if (!strncmp(command,"list",4)) 
 	{
         /* Return a printed list of loaded tables */
-        tableListIt it = mInstance->mTables.begin();
-        string table_list;
-        while (it!=mInstance->mTables.end()) {
-            char num[16];
-            if (table_list.size()) {
-                snprintf(num,16,",%d",(*it).first);
-                table_list = table_list+string(num);
-            } else {
-                snprintf(num,16,"%d",(*it).first);
-                table_list = string(num);
-            }
-            it++;
-        }
-        table_list = string("Tables: ")+table_list+string("\n");
-        sprintf(msg,"219 %s",table_list.c_str());
+        sprintf(msg,"219 %s",mInstance->mTableInfo.c_str());
 	}
     else if (!strncmp(command,"wnd_show",8))
 	{
@@ -869,6 +887,9 @@ void *Kraken::consoleThread(void *arg)
 	return NULL;
 }
 
+/**
+ * Program entry point
+ */
 int main(int argc, char* argv[])
 {
     if (argc<2) {
