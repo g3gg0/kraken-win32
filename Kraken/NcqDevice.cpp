@@ -20,6 +20,8 @@ NcqDevice::NcqDevice(const char* pzDevNode)
 {
     mRunning = false;
 	mPaused = false;
+	mWait = false;
+	mWaiting = false;
 	mStartSector = 0;
 
 	mDeviceName = strdup(pzDevNode);
@@ -165,26 +167,37 @@ void NcqDevice::Request(class NcqRequestor* req, uint64_t blockno)
 #endif
 }
 
-void NcqDevice::Cancel(class NcqRequestor*)
+void NcqDevice::Cancel(class NcqRequestor* req)
 {
-}
+    sem_wait(&mMutex);
 
-void NcqDevice::Pause()
-{
-	sem_wait(&mMutex);
-	mPaused = true;
+
 	sem_post(&mMutex);
 }
 
-void NcqDevice::Unpause()
+void NcqDevice::SpinLock(bool state)
 {
-	mPaused = false;
+	/* lock now */
+	if(state)
+	{
+		mWait = true;
+
+		while(!mWaiting)
+		{
+			usleep(100);
+		}
+	}
+	else
+	{
+		mWait = false;
+	}
 }
 
 /* clear all pending requests */
 void NcqDevice::Clear()
 {
     sem_wait(&mMutex);
+
 	while(mRequests.size() > 0)
 	{
 		mRequests.pop();
@@ -212,10 +225,15 @@ void NcqDevice::WorkerThread()
     while (mRunning)
 	{
 		bool queued = false;
-		do
+
+		usleep(500);
+
+		while(mWait)
 		{
-			usleep(500);
-		} while(mPaused);
+			mWaiting = true;
+			usleep(0);
+		}
+		mWaiting = false;
 
         sem_wait(&mMutex);
 
@@ -309,6 +327,11 @@ void NcqDevice::WorkerThread()
 
 			mBlocksRead = 0;
 			idle = true;
+		}
+
+		if(idle)
+		{
+			usleep(500);
 		}
     }
 #else

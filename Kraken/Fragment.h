@@ -21,15 +21,26 @@ public:
     void processBlock(const void* pDataBlock);
 
     void setBitPos(int pos) {mBitPos=pos;}
-    void setRef(int count, int countRef, char *bitsRef) 
+    void setRef(int count, int countRef, char *bitsRef, int clientId, int jobId) 
 	{
 		mCount=count;
 		mCountRef=countRef;
 		mBitsRef=bitsRef;
+		mClientId=clientId;
+		mJobNum=jobId;
 	}
 	
+	unsigned int getAdvance() {return mAdvance;}
     int getBitPos() {return mBitPos;}
+    int getState() {return mState;}
+    int getCount() {return mCount;}
+    int getCountRef() {return mCountRef;}
+    char *getBitsRef() {return mBitsRef;}
+    int getJobNum() {return mJobNum;}
+    int getClientId() {return mClientId;}
+	void cancel();
 
+	void requeueTransfer();
     void handleSearchResult(uint64_t result, int start_round);
 
 private:
@@ -42,6 +53,9 @@ private:
 	int mCount;
 	int mCountRef;
 	char* mBitsRef;
+    int mJobNum;
+    int mClientId;
+	bool mCancelled;
 
     uint64_t mEndpoint;
     uint64_t mBlockStart;

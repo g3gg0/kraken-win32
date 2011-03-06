@@ -45,14 +45,15 @@
 #endif
 
 
-#include <queue>
 #include <semaphore.h>
 #include <unistd.h>
 #include <pthread.h>
 #include <stdint.h>
 #include "Advance.h"
 #include <map>
+#include <queue>
 #include <deque>
+#include <list>
 
 using namespace std;
 
@@ -68,7 +69,9 @@ public:
   bool PopResult(uint64_t& start_value, uint64_t& stop_value,
                  int32_t& start_round, void** context);
   bool IsIdle();
+  void SpinLock(bool state);
   void Clear();
+  void Cancel(list<void*> ctxList);
   static uint64_t ReverseBits(uint64_t r);
   static int PopcountNibble(int x);
 
@@ -91,6 +94,8 @@ private:
   unsigned char mTable4bit[256];
 
   bool mRunning; /* false stops worker thread */
+  bool mWait;
+  bool mWaiting;
 
   /* Mutex semaphore to protect the queues */
   sem_t mMutex;
@@ -101,9 +106,9 @@ private:
   deque<uint32_t> mInputAdvance;
   deque<void*>    mInputContext;
   /* OUtput queues */
-  queue< pair<uint64_t,uint64_t> > mOutput;
-  queue<int32_t>  mOutputStartRound;
-  queue<void*>    mOutputContext;
+  deque< pair<uint64_t,uint64_t> > mOutput;
+  deque<int32_t>  mOutputStartRound;
+  deque<void*>    mOutputContext;
 
   map< uint32_t, class Advance* > mAdvances;
 };

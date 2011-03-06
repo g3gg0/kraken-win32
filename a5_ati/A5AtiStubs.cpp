@@ -2,8 +2,17 @@
 #include "A5AtiStubs.h"
 
 #include <stdio.h>
-
 #include "Globals.h"
+
+
+
+#include <stdio.h>
+#include <stdlib.h>
+#include <unistd.h>
+#include <list>
+using namespace std;
+
+
 
 static bool isDllLoaded = false;
 static bool isDllError  = false;
@@ -17,6 +26,8 @@ static int  (*fSubmitPartial)(uint64_t value, unsigned int stop,
 static bool (*fPopResult)(uint64_t& start, uint64_t& stop, void** ctx) = NULL;
 static bool (*fIsIdle)(void) = NULL;
 static void (*fClear)(void) = NULL;
+static void (*fCancel)(list<void*> ctxList) = NULL;
+static void (*fSpinLock)(bool state) = NULL;
 static void (*fShutdown)(void) = NULL;
 
 static bool LoadDllSym(void* handle, const char* name, void** func)
@@ -63,14 +74,16 @@ static void LoadDLL(void)
     }
 #endif
 
-    LoadDllSym(lHandle, "A5AtiPipelineInfo", (void**)&fPipelineInfo);
-    LoadDllSym(lHandle, "A5AtiInit", (void**)&fInit);
-    LoadDllSym(lHandle, "A5AtiSubmit", (void**)&fSubmit);
-    LoadDllSym(lHandle, "A5AtiSubmitPartial", (void**)&fSubmitPartial);
-    LoadDllSym(lHandle, "A5AtiPopResult", (void**)&fPopResult);
-    LoadDllSym(lHandle, "A5AtiIsIdle", (void**)&fIsIdle);
-	LoadDllSym(lHandle, "A5AtiClear", (void**)&fClear);
-    LoadDllSym(lHandle, "A5AtiShutdown", (void**)&fShutdown);
+    LoadDllSym(lHandle, "A5PipelineInfo", (void**)&fPipelineInfo);
+    LoadDllSym(lHandle, "A5Init", (void**)&fInit);
+    LoadDllSym(lHandle, "A5Submit", (void**)&fSubmit);
+    LoadDllSym(lHandle, "A5SubmitPartial", (void**)&fSubmitPartial);
+    LoadDllSym(lHandle, "A5PopResult", (void**)&fPopResult);
+    LoadDllSym(lHandle, "A5IsIdle", (void**)&fIsIdle);
+	LoadDllSym(lHandle, "A5Clear", (void**)&fClear);
+	LoadDllSym(lHandle, "A5Cancel", (void**)&fCancel);
+	LoadDllSym(lHandle, "A5SpinLock", (void**)&fSpinLock);
+    LoadDllSym(lHandle, "A5Shutdown", (void**)&fShutdown);
 
     isDllLoaded = !isDllError;
 }
@@ -130,6 +143,20 @@ void A5AtiClear()
 	if (isDllLoaded) {
 		fClear();
 	}  
+}
+
+void A5AtiCancel(list<void*> ctxList)
+{
+	if (isDllLoaded) {
+		fCancel(ctxList);
+	}  
+}
+
+void A5AtiSpinLock(bool state)
+{
+  if (isDllLoaded) {
+      fSpinLock(state);
+  }  
 }
 
 bool A5AtiPopResult(uint64_t& start_value, uint64_t& stop_value,

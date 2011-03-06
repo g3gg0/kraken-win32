@@ -37,8 +37,7 @@ public:
     ~NcqDevice();
 
 	bool isRunning();
-	void Pause();
-	void Unpause();
+	void SpinLock(bool state);
 	uint64_t getMaxBlockNum() { return mMaxBlockNum; }
 	char* GetDeviceStats();
     void Request(class NcqRequestor*, uint64_t blockno);
@@ -79,6 +78,7 @@ private:
     unsigned char mBuffer[4096];
     mapRequest_t mMappings[NCQ_REQUESTS];
     queue< request_t > mRequests;
+    queue< request_t > mCancelledRequests;
     int mFreeMap;
     sem_t mMutex;
 	sem_t mSpinlock;
@@ -89,6 +89,8 @@ private:
 	float mReadTime;
 
     bool mRunning;
+	bool mWait;
+	bool mWaiting;
 	bool mPaused;
     char mDevC;
 };

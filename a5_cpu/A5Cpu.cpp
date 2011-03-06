@@ -24,6 +24,7 @@
 #include "Globals.h"
 
 using namespace std;
+#include <deque>
 
 /**
  * Construct an instance of A5 Cpu searcher
@@ -33,6 +34,8 @@ A5Cpu::A5Cpu(int max_rounds, int condition, int threads)
 {
   mCondition = 32 - condition;
   mMaxRound = max_rounds;
+  mWait = false;
+  mWaiting = false;
 
   /* Set up lookup tables */
   CalcTables();
@@ -138,12 +141,117 @@ void A5Cpu::Clear()
 	mInputRoundStop.clear();
 	mInputAdvance.clear();
 	mInputContext.clear();
-	while (mOutput.size()>0) 
+
+	mOutput.clear();
+	mOutputStartRound.clear();
+	mOutputContext.clear();
+
+	sem_post(&mMutex);
+}
+  
+void A5Cpu::SpinLock(bool state)
+{
+	/* lock now */
+	if(state)
 	{
-		mOutput.pop();
-		mOutputStartRound.pop();
-		mOutputContext.pop();
+		mWait = true;
+
+		while(!mWaiting)
+		{
+			usleep(100);
+		}
 	}
+	else
+	{
+		mWait = false;
+	}
+}
+
+void A5Cpu::Cancel(list<void*> ctxList)
+{
+	sem_wait(&mMutex);
+
+	{
+		list<size_t> deleteList;
+		
+		/* go through all ctx to delete */
+		list<void*>::iterator itCtxList;
+		for( itCtxList = ctxList.begin(); itCtxList != ctxList.end(); ++itCtxList) 
+		{
+			/* build a list of positions where these entries are */
+			size_t pos = 0;
+			deque<void*>::iterator queued;
+			for( queued = mInputContext.begin(); queued != mInputContext.end(); ++queued ) 
+			{
+				void *a = (*itCtxList);
+				void *b = (*queued);
+
+				if(a == b)
+				{
+					deleteList.push_back(pos);
+				}
+				pos++;
+			}
+		}
+
+		size_t deleted = 0;
+		list<size_t>::iterator itDeleteList;
+		for( itDeleteList = deleteList.begin(); itDeleteList != deleteList.end(); ++itDeleteList ) 
+		{
+			/* if some entries were delete before, the position in the deque needs to be corrected */
+			size_t pos = (*itDeleteList) - deleted;
+
+			mInputStart.erase(mInputStart.begin() + pos);
+			mInputTarget.erase(mInputTarget.begin() + pos);
+			mInputRound.erase(mInputRound.begin() + pos);
+			mInputRoundStop.erase(mInputRoundStop.begin() + pos);
+			mInputAdvance.erase(mInputAdvance.begin() + pos);
+			mInputContext.erase(mInputContext.begin() + pos);
+
+			deleted++;
+		}
+	}
+
+    /* Output queues */
+	{
+		list<size_t> deleteList;
+		
+		/* go through all ctx to delete */
+		list<void*>::iterator itCtxList;
+		for( itCtxList = ctxList.begin(); itCtxList != ctxList.end(); ++itCtxList) 
+		{
+			/* build a list of positions where these entries are */
+			size_t pos = 0;
+			deque<void*>::iterator queued;
+			for( queued = mOutputContext.begin(); queued != mOutputContext.end(); ++queued ) 
+			{
+				void *a = (*itCtxList);
+				void *b = (*queued);
+
+				if(a == b)
+				{
+					deleteList.push_back(pos);
+				}
+				pos++;
+			}
+		}
+
+		size_t deleted = 0;
+		list<size_t>::iterator itDeleteList;
+		for( itDeleteList = deleteList.begin(); itDeleteList != deleteList.end(); ++itDeleteList ) 
+		{
+			/* if some entries were delete before, the position in the deque needs to be corrected */
+			size_t pos = (*itDeleteList) - deleted;
+
+			mOutput.erase(mOutput.begin() + pos);
+			mOutputStartRound.erase(mOutputStartRound.begin() + pos);
+			mOutputContext.erase(mOutputContext.begin() + pos);
+
+			deleted++;
+		}
+	}
+
+
 	sem_post(&mMutex);
 }
   
@@ -155,13 +263,13 @@ bool A5Cpu::PopResult(uint64_t& start_value, uint64_t& stop_value,
   if (mOutput.size()>0) {
     res = true;
     pair<uint64_t,uint64_t> res = mOutput.front();
-    mOutput.pop();
+    mOutput.pop_front();
     start_value = res.first;
     stop_value = res.second;
     start_round = mOutputStartRound.front();
-    mOutputStartRound.pop();
+    mOutputStartRound.pop_front();
     void* ctx = mOutputContext.front();
-    mOutputContext.pop();
+    mOutputContext.pop_front();
     if (context) *context = ctx;
   }
   sem_post(&mMutex);
@@ -186,8 +294,16 @@ void A5Cpu::Process(void)
   for(;;) {
     if (!mRunning) break;
 
+	while(mWait)
+	{
+		mWaiting = true;
+		usleep(0);
+	}
+	mWaiting = false;
+
     /* Get input */
     sem_wait(&mMutex);
+	mWaiting = false;
     if (mInputStart.size()) {
       start_point = mInputStart.front();
       mInputStart.pop_front();
@@ -343,9 +459,9 @@ void A5Cpu::Process(void)
 
     uint64_t res = (((uint64_t)out_hi)<<32)|out_lo;
     res = ReverseBits(res);
-    mOutput.push( pair<uint64_t,uint64_t>(start_point,res) );
-    mOutputStartRound.push( start_round );
-    mOutputContext.push( context );
+    mOutput.push_back( pair<uint64_t,uint64_t>(start_point,res) );
+    mOutputStartRound.push_back( start_round );
+    mOutputContext.push_back( context );
     active = false;
 
     sem_post(&mMutex);
@@ -499,14 +615,14 @@ extern "C" {
 
 static class A5Cpu* a5Instance = 0;
 
-bool DLL_PUBLIC A5CpuInit(int max_rounds, int condition, int threads)
+bool DLL_PUBLIC A5Init(int max_rounds, int condition, int threads)
 {
   if (a5Instance) return false;
   a5Instance = new A5Cpu(max_rounds, condition, threads );
   return true;
 }
 
-int  DLL_PUBLIC A5CpuSubmit(uint64_t start_value, int32_t start_round,
+int  DLL_PUBLIC A5Submit(uint64_t start_value, int32_t start_round,
                             uint32_t advance, void* context)
 {
   if (a5Instance) {
@@ -515,7 +631,7 @@ int  DLL_PUBLIC A5CpuSubmit(uint64_t start_value, int32_t start_round,
   return -1; /* Error */
 }
 
-int  DLL_PUBLIC A5CpuKeySearch(uint64_t start_value, uint64_t target, int32_t start_round,
+int  DLL_PUBLIC A5KeySearch(uint64_t start_value, uint64_t target, int32_t start_round,
                                int32_t stop_round, uint32_t advance, void* context)
 {
   if (a5Instance) {
@@ -525,7 +641,7 @@ int  DLL_PUBLIC A5CpuKeySearch(uint64_t start_value, uint64_t target, int32_t st
 }
 
 
-bool DLL_PUBLIC A5CpuPopResult(uint64_t& start_value, uint64_t& stop_value,
+bool DLL_PUBLIC A5PopResult(uint64_t& start_value, uint64_t& stop_value,
                                int32_t& start_round, void** context)
 {
   if (a5Instance) {
@@ -534,7 +650,7 @@ bool DLL_PUBLIC A5CpuPopResult(uint64_t& start_value, uint64_t& stop_value,
   return false; /* Nothing popped */ 
 }
 
-void DLL_PUBLIC A5CpuShutdown()
+void DLL_PUBLIC A5Shutdown()
 {
     if (a5Instance) {
 		a5Instance->Shutdown();
@@ -543,7 +659,7 @@ void DLL_PUBLIC A5CpuShutdown()
 	a5Instance = NULL;
 }
 
-bool DLL_PUBLIC A5CpuIsIdle()
+bool DLL_PUBLIC A5IsIdle()
 {
     if (a5Instance) {
         return a5Instance->IsIdle();
@@ -552,10 +668,24 @@ bool DLL_PUBLIC A5CpuIsIdle()
 }
 
 
-void DLL_PUBLIC A5CpuClear()
+void DLL_PUBLIC A5Clear()
 {  
 	if (a5Instance) {
 		a5Instance->Clear();
+	}
+}
+
+void DLL_PUBLIC A5Cancel(list<void*> ctxList)
+{  
+	if (a5Instance) {
+		a5Instance->Cancel(ctxList);
+	}
+}
+
+void DLL_PUBLIC A5SpinLock(bool state)
+{  
+	if (a5Instance) {
+		a5Instance->SpinLock(state);
 	}
 }
 

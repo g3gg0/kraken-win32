@@ -2,6 +2,11 @@
 #define A5_ATI_STUBS
 
 #include <stdint.h>
+#include <stdio.h>
+#include <stdlib.h>
+#include <unistd.h>
+#include <list>
+using namespace std;
 
 bool A5AtiPipelineInfo(int &length);
 bool A5AtiInit(int max_rounds, int condition, unsigned int gpu_mask,
@@ -14,6 +19,8 @@ bool A5AtiPopResult(uint64_t& start_value, uint64_t& stop_value,
                     void** context);  
 bool A5AtiIsIdle();
 void A5AtiClear();
+void A5AtiCancel(list<void*> ctxList);
+void A5AtiSpinLock(bool state);
 void A5AtiShutdown();
 
 void ApplyIndexFunc(uint64_t& start_index, int bits);

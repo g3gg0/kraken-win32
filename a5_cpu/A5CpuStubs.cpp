@@ -5,6 +5,12 @@
 
 #include "Globals.h"
 
+#include <stdio.h>
+#include <stdlib.h>
+#include <unistd.h>
+#include <list>
+using namespace std;
+
 static bool isDllLoaded = false;
 static bool isDllError  = false;
 
@@ -18,6 +24,8 @@ static bool (*fPopResult)(uint64_t& start_value, uint64_t& stop_value,
 static void (*fShutdown)(void) = NULL;
 static bool (*fIsIdle)(void) = NULL;
 static void (*fClear)(void) = NULL;
+static void (*fCancel)(list<void*> ctxList) = NULL;
+static void (*fSpinLock)(bool state) = NULL;
 
 static bool LoadDllSym(void* handle, const char* name, void** func)
 {
@@ -58,13 +66,15 @@ static void LoadDLL(void)
     }
 #endif
 
-  LoadDllSym(lHandle, "A5CpuInit", (void**)&fInit);
-  LoadDllSym(lHandle, "A5CpuSubmit", (void**)&fSubmit);
-  LoadDllSym(lHandle, "A5CpuKeySearch", (void**)&fKeySearch);
-  LoadDllSym(lHandle, "A5CpuPopResult", (void**)&fPopResult);
-  LoadDllSym(lHandle, "A5CpuIsIdle", (void**)&fIsIdle);
-  LoadDllSym(lHandle, "A5CpuClear", (void**)&fClear);
-  LoadDllSym(lHandle, "A5CpuShutdown", (void**)&fShutdown);
+  LoadDllSym(lHandle, "A5Init", (void**)&fInit);
+  LoadDllSym(lHandle, "A5Submit", (void**)&fSubmit);
+  LoadDllSym(lHandle, "A5KeySearch", (void**)&fKeySearch);
+  LoadDllSym(lHandle, "A5PopResult", (void**)&fPopResult);
+  LoadDllSym(lHandle, "A5IsIdle", (void**)&fIsIdle);
+  LoadDllSym(lHandle, "A5Clear", (void**)&fClear);
+  LoadDllSym(lHandle, "A5Cancel", (void**)&fCancel);
+  LoadDllSym(lHandle, "A5SpinLock", (void**)&fSpinLock);
+  LoadDllSym(lHandle, "A5Shutdown", (void**)&fShutdown);
 
   isDllLoaded = !isDllError;
 
@@ -123,6 +133,20 @@ void A5CpuClear()
 {
   if (isDllLoaded) {
       fClear();
+  }  
+}
+
+void A5CpuCancel(list<void*> ctxList)
+{
+  if (isDllLoaded) {
+      fCancel(ctxList);
+  }  
+}
+
+void A5CpuSpinLock(bool state)
+{
+  if (isDllLoaded) {
+      fSpinLock(state);
   }  
 }
 

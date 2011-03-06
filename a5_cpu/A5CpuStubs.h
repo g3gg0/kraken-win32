@@ -2,6 +2,11 @@
 #define A5_CPU_STUBS
 
 #include <stdint.h>
+#include <stdio.h>
+#include <stdlib.h>
+#include <unistd.h>
+#include <list>
+using namespace std;
 
 bool A5CpuInit(int max_rounds, int condition, int threads);
 int  A5CpuSubmit(uint64_t start_value, int32_t start_round,
@@ -13,6 +18,8 @@ bool A5CpuPopResult(uint64_t& start_value, uint64_t& stop_value,
                     int32_t& start_round, void** context);  
 bool A5CpuIsIdle();
 void A5CpuClear();
+void A5CpuCancel(list<void*> ctxList);
+void A5CpuSpinLock(bool state);
 void A5CpuShutdown();
 
 #endif

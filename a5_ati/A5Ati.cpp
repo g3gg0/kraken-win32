@@ -31,6 +31,8 @@
 #endif
 
 using namespace std;
+#include <deque>
+#include <list>
 
 #include "Globals.h"
 
@@ -59,6 +61,9 @@ AtiA5::AtiA5(int max_rounds, int condition, unsigned int gpu_mask, int pipeline_
 
 	mUsable = true;
     mRunning = true;
+	mWaiting = false;
+	mWait = false;
+	mIdle = true;
 
     /* Init semaphore */
     sem_init( &mMutex, 0, 1 );
@@ -142,7 +147,116 @@ bool AtiA5::IsIdle()
 
 	return idle;
 }
-  
+
+void AtiA5::SpinLock(bool state)
+{
+	/* lock now */
+	if(state)
+	{
+		mWait = true;
+
+		while(!mWaiting)
+		{
+			usleep(100);
+		}
+	}
+	else
+	{
+		mWait = false;
+	}
+}
+
+void AtiA5::Cancel(list<void*> ctxList)
+{
+	sem_wait(&mMutex);
+
+	{
+		list<size_t> deleteList;
+		
+		/* go through all ctx to delete */
+		list<void*>::iterator itCtxList;
+		for( itCtxList = ctxList.begin(); itCtxList != ctxList.end(); ++itCtxList) 
+		{
+			/* build a list of positions where these entries are */
+			size_t pos = 0;
+			deque<void*>::iterator queued;
+			for( queued = mInputContext.begin(); queued != mInputContext.end(); ++queued ) 
+			{
+				void *a = (*itCtxList);
+				void *b = (*queued);
+
+				if(a == b)
+				{
+					deleteList.push_back(pos);
+					break;
+				}
+				pos++;
+			}
+		}
+
+		deleteList.sort();
+
+		size_t deleted = 0;
+		list<size_t>::iterator itDeleteList;
+		for( itDeleteList = deleteList.begin(); itDeleteList != deleteList.end(); ++itDeleteList ) 
+		{
+			/* if some entries were delete before, the position in the deque needs to be corrected */
+			size_t pos = (*itDeleteList) - deleted;
+
+			mInputStart.erase(mInputStart.begin() + pos);
+			mInputRoundStart.erase(mInputRoundStart.begin() + pos);
+			mInputRoundStop.erase(mInputRoundStop.begin() + pos);
+			mInputAdvance.erase(mInputAdvance.begin() + pos);
+			mInputContext.erase(mInputContext.begin() + pos);
+
+			deleted++;
+		}
+	}
+
+    /* Output queues */
+	{
+		list<size_t> deleteList;
+		
+		/* go through all ctx to delete */
+		list<void*>::iterator itCtxList;
+		for( itCtxList = ctxList.begin(); itCtxList != ctxList.end(); ++itCtxList) 
+		{
+			/* build a list of positions where these entries are */
+			size_t pos = 0;
+			deque<void*>::iterator queued;
+			for( queued = mOutputContext.begin(); queued != mOutputContext.end(); ++queued ) 
+			{
+				void *a = (*itCtxList);
+				void *b = (*queued);
+
+				if(a == b)
+				{
+					deleteList.push_back(pos);
+					break;
+				}
+				pos++;
+			}
+		}
+
+		deleteList.sort();
+
+		size_t deleted = 0;
+		list<size_t>::iterator itDeleteList;
+		for( itDeleteList = deleteList.begin(); itDeleteList != deleteList.end(); ++itDeleteList ) 
+		{
+			/* if some entries were delete before, the position in the deque needs to be corrected */
+			size_t pos = (*itDeleteList) - deleted;
+
+			mOutput.erase(mOutput.begin() + pos);
+			mOutputContext.erase(mOutputContext.begin() + pos);
+
+			deleted++;
+		}
+	}
+
+	sem_post(&mMutex);
+}
+
 void AtiA5::Clear()
 {
 	/* clear jobs */
@@ -154,8 +268,8 @@ void AtiA5::Clear()
 	mInputContext.clear();
 	while(mOutput.size() > 0)
 	{
-		mOutput.pop();
-		mOutputContext.pop();
+		mOutput.pop_front();
+		mOutputContext.pop_front();
 	}
 	sem_post(&mMutex);
 
@@ -181,11 +295,11 @@ bool AtiA5::PopResult(uint64_t& start_value,
     if (mOutput.size()>0) {
         res = true;
         pair<uint64_t,uint64_t> res = mOutput.front();
-        mOutput.pop();
+        mOutput.pop_front();
         start_value = res.first;
         stop_value = res.second;
         void* ctx = mOutputContext.front();
-        mOutputContext.pop();
+        mOutputContext.pop_front();
         if (context) *context = ctx;
     }
     sem_post(&mMutex);
@@ -229,8 +343,8 @@ bool AtiA5::PopRequest(JobPiece_s* job)
 void AtiA5::PushResult(JobPiece_s* job)
 {
     sem_wait(&mMutex);
-    mOutput.push( pair<uint64_t,uint64_t>(job->start_value,job->end_value) );
-    mOutputContext.push(job->context);
+    mOutput.push_back( pair<uint64_t,uint64_t>(job->start_value,job->end_value) );
+    mOutputContext.push_back(job->context);
     sem_post(&mMutex);
 }
 
@@ -293,37 +407,46 @@ void AtiA5::Process(void)
     for(;;) {
         bool newCmd = false;
 
-        sem_wait(&mMutex);
-        int available = (int)mInputStart.size();
-        sem_post(&mMutex);
-
-        int total = available;
-        for( int i=0; i<mNumSlices ; i++ ) {
-            total += mSlices[i]->getNumJobs();
-        }        
-
-        if (total) {
-            for( int i=0; i<mNumSlices ; i++ ) {
-                mSlices[i]->makeAvailable(available);
-                newCmd |= mSlices[i]->tick();
-            }
-        } else {
-            /* Empty pipeline */
-            usleep(1000);
-        }
-
-        if (!newCmd) {
-            /* In wait state, ease up on the CPU in our busy loop */
-            usleep(0);
-			mIdle = true;
-        }
+		if(mWait)
+		{
+			mWaiting = true;
+			usleep(0);
+		}
 		else
 		{
-			mIdle = false;
-		}
+			mWaiting = false;
+			sem_wait(&mMutex);
+			int available = (int)mInputStart.size();
+			sem_post(&mMutex);
 
-		MEMCHECK();
-        if (!mRunning) break;
+			int total = available;
+			for( int i=0; i<mNumSlices ; i++ ) {
+				total += mSlices[i]->getNumJobs();
+			}        
+
+			if (total) {
+				for( int i=0; i<mNumSlices ; i++ ) {
+					mSlices[i]->makeAvailable(available);
+					newCmd |= mSlices[i]->tick();
+				}
+			} else {
+				/* Empty pipeline */
+				usleep(1000);
+			}
+
+			if (!newCmd) {
+				/* In wait state, ease up on the CPU in our busy loop */
+				usleep(0);
+				mIdle = true;
+			}
+			else
+			{
+				mIdle = false;
+			}
+
+			MEMCHECK();
+			if (!mRunning) break;
+		}
     }
     
     for( int i=0; i<mNumSlices ; i++ ) {
@@ -349,14 +472,14 @@ extern "C" {
 
 static class AtiA5* a5Instance = 0;
 
-bool DLL_PUBLIC A5AtiInit(int max_rounds, int condition, unsigned int gpu_mask, int pipeline_mul)
+bool DLL_PUBLIC A5Init(int max_rounds, int condition, unsigned int gpu_mask, int pipeline_mul)
 {
     if (a5Instance) return false;
     a5Instance = new AtiA5(max_rounds, condition, gpu_mask, pipeline_mul);
 	return a5Instance->IsUsable();
 }
 
-bool DLL_PUBLIC A5AtiPipelineInfo(int &length)
+bool DLL_PUBLIC A5PipelineInfo(int &length)
 {
     if (a5Instance) {
         return a5Instance->PipelineInfo(length);
@@ -364,7 +487,7 @@ bool DLL_PUBLIC A5AtiPipelineInfo(int &length)
     return false;
 }
 
-int  DLL_PUBLIC A5AtiSubmit(uint64_t start_value, unsigned int start_round, uint32_t advance, void* context)
+int  DLL_PUBLIC A5Submit(uint64_t start_value, unsigned int start_round, uint32_t advance, void* context)
 {
     if (a5Instance) {
         return a5Instance->Submit(start_value, start_round, advance, context);
@@ -372,7 +495,7 @@ int  DLL_PUBLIC A5AtiSubmit(uint64_t start_value, unsigned int start_round, uint
     return -1; /* Error */
 }
 
-int  DLL_PUBLIC A5AtiSubmitPartial(uint64_t start_value, unsigned int stop_round, uint32_t advance, void* context)
+int  DLL_PUBLIC A5SubmitPartial(uint64_t start_value, unsigned int stop_round, uint32_t advance, void* context)
 {
     if (a5Instance) {
         return a5Instance->SubmitPartial(start_value, stop_round, advance, context);
@@ -381,7 +504,7 @@ int  DLL_PUBLIC A5AtiSubmitPartial(uint64_t start_value, unsigned int stop_round
 }
 
 
-bool DLL_PUBLIC A5AtiPopResult(uint64_t& start_value, uint64_t& stop_value, void** context)
+bool DLL_PUBLIC A5PopResult(uint64_t& start_value, uint64_t& stop_value, void** context)
 {
     if (a5Instance) {
         return a5Instance->PopResult(start_value, stop_value, context);
@@ -390,7 +513,7 @@ bool DLL_PUBLIC A5AtiPopResult(uint64_t& start_value, uint64_t& stop_value, void
 }
 
 
-bool DLL_PUBLIC A5AtiIsIdle()
+bool DLL_PUBLIC A5IsIdle()
 {
     if (a5Instance) {
         return a5Instance->IsIdle();
@@ -399,14 +522,28 @@ bool DLL_PUBLIC A5AtiIsIdle()
 }
 
 
-void DLL_PUBLIC A5AtiClear()
+void DLL_PUBLIC A5Clear()
 {  
 	if (a5Instance) {
 		a5Instance->Clear();
 	}
 }
 
-void DLL_PUBLIC A5AtiShutdown()
+void DLL_PUBLIC A5Cancel(list<void*> context)
+{  
+	if (a5Instance) {
+		a5Instance->Cancel(context);
+	}
+}
+
+void DLL_PUBLIC A5SpinLock(bool state)
+{  
+	if (a5Instance) {
+		a5Instance->SpinLock(state);
+	}
+}
+
+void DLL_PUBLIC A5Shutdown()
 {
 	if (a5Instance) {
 		a5Instance->Shutdown();

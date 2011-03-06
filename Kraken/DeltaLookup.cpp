@@ -227,6 +227,11 @@ DeltaLookup::~DeltaLookup()
 	UnloadTable();
 }
 
+void DeltaLookup::Cancel(NcqRequestor* req)
+{
+	mDevice->Cancel(req);
+}
+
 #define DEBUG_PRINT 0
 
 uint64_t DeltaLookup::StartEndpointSearch(NcqRequestor* req, uint64_t end, uint64_t& blockstart)

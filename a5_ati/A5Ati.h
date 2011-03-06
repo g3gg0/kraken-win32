@@ -49,6 +49,7 @@
 #include <stdint.h>
 #include <queue>
 #include <deque>
+#include <list>
 #include <semaphore.h>
 #include <unistd.h>
 #include <pthread.h>
@@ -69,7 +70,9 @@ public:
     int  SubmitPartial(uint64_t start_value, unsigned int stop_round, uint32_t advance, void* context);
     bool PopResult(uint64_t& start_value, uint64_t& stop_value, void** context);
 	bool IsIdle();
+	void SpinLock(bool state);
 	void Clear();
+	void Cancel(list<void*> ctxList);
     bool IsUsable() { return mUsable; }
 
     static uint64_t ReverseBits(uint64_t r);
@@ -96,6 +99,8 @@ private:
 
 	bool mUsable;
 	bool mIdle;
+	bool mWaiting;
+	bool mWait;
 	bool Init(void);
     void Process(void);
 
@@ -124,8 +129,8 @@ private:
     deque<void*>    mInputContext;
     deque<uint32_t> mInputAdvance;
     /* Output queues */
-    queue< pair<uint64_t,uint64_t> > mOutput;
-    queue<void*>    mOutputContext;
+    deque< pair<uint64_t,uint64_t> > mOutput;
+    deque<void*>    mOutputContext;
     /* Mutex protected advance map */
     map< uint32_t, class Advance* > mAdvanceMap;
 };

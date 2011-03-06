@@ -36,12 +36,15 @@ public:
     static Kraken* getInstance() { return mInstance; } 
     void removeFragment(Fragment* frag);
 	void clearFragments();
+	void cancelJobFragments(int jobId);
 
+	void deviceSpinLock(bool state);
     bool isUsingAti() {return mUsingAti;}
 
-    void reportFind(uint64_t result, int bitPos, unsigned int advance, int count, int countRef, char *bitsRef);
+    void reportFind(uint64_t result, Fragment *frag);
 	void sendMessage(char *msg, int client);
     static void serverCmd(int clientID, string cmd);
+    void showFragments(void);
 	static void *consoleThread(void *arg);
 	bool mRunning;
 
@@ -52,6 +55,10 @@ public:
 	/* ToDo: */
 	double mTotalSearchTime;
 	unsigned long mRuntime;
+
+    map<unsigned int, int> mJobMap;
+    map<unsigned int, int> mJobMapMax;
+    map<unsigned int, struct timeval> mTimingMap;
 
 private:
     int mNumDevices;
@@ -69,8 +76,6 @@ private:
     queue<int> mWorkIds;
     queue<string> mWorkOrders;
     queue<int> mWorkClients;
-	int mCurrentId;
-    int mCurrentClient;
 
 	queue<uint64_t> mSubmittedStartValue;
 	queue<unsigned int> mSubmittedStartRound;
@@ -79,6 +84,7 @@ private:
 
     bool mUsingAti;
     bool mBusy;
+	bool mJobParallel;
     struct timeval mStartTime;
     struct timeval mLastJobTime;
     ServerCore* mServer;

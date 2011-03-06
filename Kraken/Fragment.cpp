@@ -54,18 +54,30 @@ Fragment::Fragment(uint64_t plaintext, unsigned int round,
     mState(0),
     mEndpoint(0),
     mBlockStart(0),
-    mStartIndex(0)
+    mStartIndex(0),
+	mCancelled(0)
 {
+}
+
+void Fragment::cancel()
+{
+	if(mState == 1)
+	{
+		mTable->Cancel(this);
+	}
+	else
+	{
+		mState = 0;
+	}
+	mCancelled = true;
 }
 
 void Fragment::processBlock(const void* pDataBlock)
 {
-    int res = mTable->CompleteEndpointSearch(pDataBlock, mBlockStart,
-                                             mEndpoint, mStartIndex);
+    int res = mTable->CompleteEndpointSearch(pDataBlock, mBlockStart, mEndpoint, mStartIndex);
 
     if (res) {
         /* Found endpoint */
-        // printf("Found: %llx %llx\n", mEndpoint, mStartIndex);
         uint64_t search_rev = mStartIndex;
         ApplyIndexFunc(search_rev, 34);
 		if (Kraken::getInstance()->isUsingAti()) {
@@ -83,16 +95,19 @@ void Fragment::processBlock(const void* pDataBlock)
         }
     } else {
         /* not found */
-        // printf("Not found: %llx\n", mEndpoint);
         return Kraken::getInstance()->removeFragment(this);
     }
 }
 
+void Fragment::requeueTransfer()
+{
+	if (mState==1 && !mCancelled) {
+        mTable->StartEndpointSearch(this, mEndpoint, mBlockStart);
+	}
+}
+
 void Fragment::handleSearchResult(uint64_t result, int start_round)
 {
-    // printf("handle %llx %i %i\n", result, start_round, mState);
-    // printf("*");
-    // fflush(stdout);
     if (mState==0) {
         mEndpoint = result;
         mTable->StartEndpointSearch(this, mEndpoint, mBlockStart);
@@ -104,10 +119,7 @@ void Fragment::handleSearchResult(uint64_t result, int start_round)
     } else if (mState==2) {
         if (start_round<0) {
             /* Found */
-            //char msg[128];
-            //snprintf(msg,128,"Found %016llx @ %i    (table:%i)\n", result, mBitPos, mAdvance);
-            //printf("%s",msg);
-            Kraken::getInstance()->reportFind(result, mBitPos, mAdvance, mCount, mCountRef, mBitsRef);
+            Kraken::getInstance()->reportFind(result, this);
         }
         return Kraken::getInstance()->removeFragment(this);
     } else {

@@ -67,6 +67,7 @@ public:
     bool tick();
     void flush();
 	void Clear();
+	void Cancel(void *context);
 
     enum wait_state getWaitState() { return mWaitState; }
 

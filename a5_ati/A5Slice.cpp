@@ -231,7 +231,7 @@ A5Slice::~A5Slice() {
     calclFreeObject(mObject);
     delete mDev;
 }
-/* Get the state of a chain across the slices */
+
 void A5Slice::Clear() 
 {
     mNumJobs = 0;
@@ -244,6 +244,22 @@ void A5Slice::Clear()
     }
     mFree = jobs - 1;
 
+}
+
+void A5Slice::Cancel(void *context) 
+{
+	int i = 0;
+
+    for( int j=0; j<32; j++) {
+        AtiA5::JobPiece_s* job = &mJobs[32*i+j];
+		if (!job->idle && job->context == context) {
+			/* Add to free list */
+			job->next_free = mFree;
+			job->idle = true;
+			mFree = 32*i+j;
+			mNumJobs--;
+        }
+    }
 }
 
 /* Get the state of a chain across the slices */

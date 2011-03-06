@@ -19,6 +19,7 @@ public:
     int CompleteEndpointSearch(const void* pDataBlock, uint64_t blockstart,
                                uint64_t endpoint, uint64_t& result);
 
+	void Cancel(NcqRequestor* req);
 	void LoadTable();
 	void UnloadTable();
 
