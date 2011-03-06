@@ -103,7 +103,7 @@ void Fragment::handleSearchResult(uint64_t result, int start_round)
             //char msg[128];
             //snprintf(msg,128,"Found %016llx @ %i    (table:%i)\n", result, mBitPos, mAdvance);
             //printf("%s",msg);
-            Kraken::getInstance()->reportFind(result, mBitPos, mCount, mCountRef, mBitsRef);
+            Kraken::getInstance()->reportFind(result, mBitPos, mAdvance, mCount, mCountRef, mBitsRef);
         }
         return Kraken::getInstance()->removeFragment(this);
     } else {

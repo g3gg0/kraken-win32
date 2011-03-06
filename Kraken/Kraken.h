@@ -39,7 +39,7 @@ public:
 
     bool isUsingAti() {return mUsingAti;}
 
-    void reportFind(uint64_t result, int bitPos, int count, int countRef, char *bitsRef);
+    void reportFind(uint64_t result, int bitPos, unsigned int advance, int count, int countRef, char *bitsRef);
 	void sendMessage(char *msg, int client);
     static void serverCmd(int clientID, string cmd);
 	static void *consoleThread(void *arg);
@@ -86,6 +86,7 @@ private:
 	unsigned char mKeyResult[8];
 
 	unsigned int mRequestId;
+    map<unsigned int, int> mActiveMap;
     string mTableInfo;
 
 };

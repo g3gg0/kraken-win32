@@ -120,6 +120,8 @@ Kraken::Kraken(const char* config, int server_port) :
 					snprintf(num,16,"%d",advance);
 					mTableInfo = string(num);
 				}
+                /* Make an entry in the active map */
+                mActiveMap[advance]=1;
             }
             pos += len;
         }
@@ -344,7 +346,7 @@ bool Kraken::Tick()
             mWorkClients.pop();
             mWorkOrders.pop();
 
-            const char* plaintext = work.c_str();
+            char *plaintext = strdup(work.c_str());
 
 			sprintf(msg, "102 %i Processing your request now\r\n", mCurrentId);
 			sendMessage(msg, mCurrentClient);
@@ -354,19 +356,60 @@ bool Kraken::Tick()
 			char *bitsRef = NULL;
 			char *count_pos = strchr((char*)plaintext, ' ');
 
+			/* Set the active map to indicate which tables shall be used */
+			char *tablist = strchr( plaintext, '[' );
+			if (tablist) 
+			{
+				/* Start with no active */
+				map<unsigned int,int>::iterator it = mActiveMap.begin();
+				while (it!=mActiveMap.end()) {
+					(*it).second = 0;
+					it++;
+				}
+
+				/* set the end of plaintext at '[' */
+				*tablist = '\000';
+				tablist++;
+				unsigned int num;
+				while(sscanf(tablist,"%d",&num)==1) {
+					it = mActiveMap.find(num);
+					if (it!=mActiveMap.end()) {
+						(*it).second = 1;
+					}
+					while ((*tablist>='0')&&(*tablist<='9')) {
+						tablist++;
+					}
+					if (*tablist==',') {
+						tablist++;
+					} else break;
+				}
+			} else {
+				/* All active */
+				map<unsigned int,int>::iterator it = mActiveMap.begin();
+				while (it!=mActiveMap.end()) {
+					(*it).second = 1;
+					it++;
+				}
+			}
+
+
+			/* check if there was a space after the first bits - thats count */
 			if(count_pos)
 			{
 				*count_pos = '\000';
 				count_pos++;
 				sscanf(count_pos, "%i", &count);
 
+				/* check if there was a space after count - that are the ref bits */
 				count_pos = strchr((char*)count_pos, ' ');
 				if(count_pos)
 				{
 					*count_pos = '\000';
 					count_pos++;
 					bitsRef = strdup(count_pos);
-
+					
+					/* check if there was a space after ref bits - that are the ref bits count */
+					/* intentionally work on bitsRef to terminate this string before count value */
 					count_pos = strchr((char*)bitsRef, ' ');
 					if(count_pos)
 					{
@@ -377,8 +420,8 @@ bool Kraken::Tick()
 				}
 			}
 
-            size_t len = strlen(plaintext);
-            size_t samples = len - 63;
+			size_t len = strlen(plaintext);
+			int samples = len - 63;
             for (size_t i=0; i<samples; i++)
 			{
                 uint64_t plain = 0;
@@ -393,6 +436,12 @@ bool Kraken::Tick()
                 tableListIt it = mTables.begin();
                 while (it!=mTables.end())
 				{
+					/* Skip if not active */
+					if (mActiveMap[(*it).first]==0) {
+						it++;
+						continue;
+					}
+					/* Create fragments for sample */ 
                     for (int k=0; k<8; k++)
 					{
                         Fragment* fr = new Fragment(plainrev,k,(*it).second,(*it).first);
@@ -408,6 +457,8 @@ bool Kraken::Tick()
                     it++;
                 }
             }
+
+			free(plaintext);
         }
     }
 
@@ -557,13 +608,13 @@ void Kraken::sendMessage(char *msg, int client)
 /**
  * Report a found key back to the issuing client
  */
-void Kraken::reportFind(uint64_t result, int bitPos, int count, int countRef, char *bitsRef)
+void Kraken::reportFind(uint64_t result, int bitPos, unsigned int advance, int count, int countRef, char *bitsRef)
 {
 	unsigned char keyData[8];
 	char msg[256];
 
 	/* output to client */
-	sprintf(msg, "103 %i %016llX %i (found a table hit)\r\n", mCurrentId, result, bitPos);
+	sprintf(msg, "103 %i %016llX %i (found a table hit in table %i)\r\n", mCurrentId, result, bitPos, advance);
 	sendMessage(msg, mCurrentClient);
 
 	/* was this a Kc cracking command with reference bits? */
@@ -849,7 +900,7 @@ void Kraken::serverCmd(int clientID, string cmd)
 
 void *Kraken::consoleThread(void *arg)
 {
-    char command[256];
+    char command[1025];
 	Kraken* kraken = (Kraken*)arg;
 
     printf("\n");
@@ -859,12 +910,12 @@ void *Kraken::consoleThread(void *arg)
 	printf("Kraken> ");
 
 	while(kraken->mRunning) {
-		char* ch = fgets(command, 256, stdin);
+		char* ch = fgets(command, 1024, stdin);
 
 		/* make sure the console writer does not corrupt our output */
 		sem_wait(&kraken->mConsoleMutex);
 
-		command[255]='\0';
+		command[1024]='\0';
 		if (!ch) break;
 
 		size_t len = strlen(command);
