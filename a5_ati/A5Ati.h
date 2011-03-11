@@ -60,25 +60,45 @@ using namespace std;
 
 class A5Slice;
 
+typedef struct
+{
+	uint64_t job_id;
+	uint64_t start_value;
+	uint32_t start_round;
+	uint32_t end_round;
+	uint32_t advance;
+	void* context;
+} t_a5_request;
+
+typedef struct
+{
+	uint64_t job_id;
+	uint64_t start_value;
+	uint64_t end_value;
+	void* context;
+} t_a5_result;
+
+
 class DLL_LOCAL AtiA5 {
 public:
-    AtiA5(int max_rounds, int condition, unsigned int gpu_mask, int pipeline_mul);
+    AtiA5(int max_rounds, int condition, uint32_t gpu_mask, int pipeline_mul);
     ~AtiA5();
     bool PipelineInfo(int &length);
 	void Shutdown();
-    int  Submit(uint64_t start_value, unsigned int start_round, uint32_t advance, void* context);
-    int  SubmitPartial(uint64_t start_value, unsigned int stop_round, uint32_t advance, void* context);
-    bool PopResult(uint64_t& start_value, uint64_t& stop_value, void** context);
+    int  Submit(uint64_t job_id, uint64_t start_value, uint32_t start_round, uint32_t advance, void* context);
+    int  SubmitPartial(uint64_t job_id, uint64_t start_value, uint32_t stop_round, uint32_t advance, void* context);
+    bool PopResult(uint64_t& job_id, uint64_t& start_value, uint64_t& end_value, void** context);
 	bool IsIdle();
 	void SpinLock(bool state);
 	void Clear();
-	void Cancel(list<void*> ctxList);
+	void Cancel(uint64_t job_id);
     bool IsUsable() { return mUsable; }
 
     static uint64_t ReverseBits(uint64_t r);
     static uint64_t AdvanceRFlfsr(uint64_t v);
 
     typedef struct {
+        uint64_t job_id;
         uint64_t start_value;
         uint64_t end_value;
         int start_round;
@@ -107,6 +127,9 @@ private:
 	int mNumSlices;
     A5Slice** mSlices;
 
+	uint64_t mRequestCount;
+	map<uint64_t,deque<t_a5_request>> mRequests;
+	map<uint64_t,deque<t_a5_result>> mResults;
 
     pthread_t mThread;
     static void* thread_stub(void* arg);
@@ -122,6 +145,7 @@ private:
 
     /* Mutex semaphore to protect the queues */
     sem_t mMutex;
+#ifdef asdasdasdasd
     /* Input queues */
     deque<uint64_t> mInputStart;
     deque<int>      mInputRoundStart;
@@ -131,6 +155,7 @@ private:
     /* Output queues */
     deque< pair<uint64_t,uint64_t> > mOutput;
     deque<void*>    mOutputContext;
+#endif
     /* Mutex protected advance map */
     map< uint32_t, class Advance* > mAdvanceMap;
 };

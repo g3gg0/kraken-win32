@@ -16,15 +16,13 @@ static bool isDllError  = false;
 
 
 static bool (*fInit)(int max_rounds, int condition, int threads) = NULL;
-static int  (*fSubmit)(uint64_t start_value, int32_t start_round, uint32_t advance, void* context) = NULL;
-static int  (*fKeySearch)(uint64_t start_value, uint64_t target, int32_t start_round, int32_t stop_round,
-                   uint32_t advance, void* context) = NULL;
-static bool (*fPopResult)(uint64_t& start_value, uint64_t& stop_value,
-                   int32_t& start_round, void** context) = NULL;
+static int  (*fSubmit)(uint64_t job_id, uint64_t start_value, int32_t start_round, uint32_t advance, void* context) = NULL;
+static int  (*fKeySearch)(uint64_t job_id, uint64_t start_value, uint64_t target, int32_t start_round, int32_t stop_round, uint32_t advance, void* context) = NULL;
+static bool (*fPopResult)(uint64_t& job_id, uint64_t& start_value, uint64_t& stop_value, int32_t& start_round, void** context) = NULL;
 static void (*fShutdown)(void) = NULL;
 static bool (*fIsIdle)(void) = NULL;
 static void (*fClear)(void) = NULL;
-static void (*fCancel)(list<void*> ctxList) = NULL;
+static void (*fCancel)(uint64_t job_id) = NULL;
 static void (*fSpinLock)(bool state) = NULL;
 
 static bool LoadDllSym(void* handle, const char* name, void** func)
@@ -91,30 +89,28 @@ bool A5CpuInit(int max_rounds, int condition, int threads)
   }
 }
   
-int  A5CpuSubmit(uint64_t start_value, int32_t start_round, uint32_t advance, void* context)
+int  A5CpuSubmit(uint64_t job_id, uint64_t start_value, int32_t start_round, uint32_t advance, void* context)
 {
   if (isDllLoaded) {
-      return fSubmit(start_value, start_round, advance, context);
+      return fSubmit(job_id, start_value, start_round, advance, context);
   } else {
     return -1;
   }
 }
 
-int  A5CpuKeySearch(uint64_t start_value, uint64_t target, int32_t start_round,
-                    int32_t stop_round, uint32_t advance, void* context)
+int  A5CpuKeySearch(uint64_t job_id, uint64_t start_value, uint64_t target, int32_t start_round, int32_t stop_round, uint32_t advance, void* context)
 {
   if (isDllLoaded) {
-      return fKeySearch(start_value, target, start_round, stop_round, advance, context);
+      return fKeySearch(job_id, start_value, target, start_round, stop_round, advance, context);
   } else {
       return -1;
   }
 }
   
-bool A5CpuPopResult(uint64_t& start_value, uint64_t& stop_value,
-                    int32_t& start_round, void** context)
+bool A5CpuPopResult(uint64_t& job_id, uint64_t& start_value, uint64_t& stop_value, int32_t& start_round, void** context)
 {
   if (isDllLoaded) {
-      return fPopResult(start_value, stop_value, start_round, context);
+      return fPopResult(job_id, start_value, stop_value, start_round, context);
   } else {
     return false;
   }
@@ -136,10 +132,10 @@ void A5CpuClear()
   }  
 }
 
-void A5CpuCancel(list<void*> ctxList)
+void A5CpuCancel(uint64_t jobId)
 {
   if (isDllLoaded) {
-      fCancel(ctxList);
+      fCancel(jobId);
   }  
 }
 

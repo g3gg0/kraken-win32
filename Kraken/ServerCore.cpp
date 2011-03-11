@@ -38,7 +38,7 @@ ServerCore::ServerCore(int port,dispatch cb) :
 	struct sockaddr_in stSockAddr;
     int reuse_addr = 1;
 
-    mListener = socket(PF_INET, SOCK_STREAM, IPPROTO_TCP);
+    mListener = (int)socket(PF_INET, SOCK_STREAM, IPPROTO_TCP);
     if(mListener==-1) {
         printf(" [E] Can't create socket.\n");
         return;
@@ -179,7 +179,7 @@ void ServerCore::Serve()
         if(readsocks) {
             if(FD_ISSET(mListener, &sockets)) {
                 /* New connection */
-                int conn = accept(mListener, NULL, NULL);
+                int conn = (int)accept(mListener, NULL, NULL);
                 if (mClientMap.size()<MAX_CLIENTS) {
                     ClientConnection* client = new ClientConnection(conn);
                     mClientMap[mClientCount++] = client;
@@ -275,7 +275,7 @@ int ClientConnection::Write(string dat)
 #ifndef WIN32
         size_t r = write(mFd, &dat.c_str()[pos], remain);
 #else
-        size_t r = send(mFd, &dat.c_str()[pos], remain, 0);
+        size_t r = send(mFd, &dat.c_str()[pos], (int)remain, 0);
 #endif
         if (r<0) break;
         remain-=r;

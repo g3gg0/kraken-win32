@@ -36,6 +36,7 @@ A5Cpu::A5Cpu(int max_rounds, int condition, int threads)
   mMaxRound = max_rounds;
   mWait = false;
   mWaiting = false;
+  mRequestCount = 0;
 
   /* Set up lookup tables */
   CalcTables();
@@ -88,10 +89,44 @@ void A5Cpu::Shutdown()
 	}
 }
 
-int  A5Cpu::Submit(uint64_t start_value, uint64_t target,
+int  A5Cpu::Submit(uint64_t job_id, uint64_t start_value, uint64_t target,
                    int32_t start_round, int32_t stop_round,
                    uint32_t advance, void* context)
 {
+    if (start_round>=mMaxRound) return -1;
+	if (stop_round<0) stop_round = mMaxRound;
+
+    sem_wait(&mMutex);
+
+	int ret = 0;
+	t_a5_request req;
+
+	req.job_id = job_id;
+	req.start_value = start_value;
+	req.start_round = start_round;
+	req.end_round = stop_round;
+	req.advance = advance;
+	req.target = target;
+	req.context = context;
+
+	if(target)
+	{
+		mRequests[job_id].push_front(req);
+	}
+	else
+	{
+		mRequests[job_id].push_back(req);
+	}
+
+	mRequestCount++;
+	ret = (mRequestCount>INT_MAX)?(INT_MAX):((int)mRequestCount);
+
+    sem_post(&mMutex);
+
+	return ret;
+
+
+#if 0
   if (start_round>=(int)mMaxRound) return -1;
   if (stop_round<0) stop_round = mMaxRound;
 
@@ -116,6 +151,7 @@ int  A5Cpu::Submit(uint64_t start_value, uint64_t target,
   size = mInputRound.size();
   sem_post(&mMutex);
   return size;
+#endif
 }  
 
 bool A5Cpu::IsIdle()
@@ -123,7 +159,7 @@ bool A5Cpu::IsIdle()
 	bool idle = false;
 
 	sem_wait(&mMutex);
-	if ((int)mInputContext.size() < mNumThreads)
+	if (mRequestCount < mNumThreads)
 	{
 		idle = true;
 	}
@@ -135,6 +171,7 @@ bool A5Cpu::IsIdle()
 void A5Cpu::Clear()
 {
 	sem_wait(&mMutex);
+/*
 	mInputStart.clear();
 	mInputTarget.clear();
 	mInputRound.clear();
@@ -145,7 +182,7 @@ void A5Cpu::Clear()
 	mOutput.clear();
 	mOutputStartRound.clear();
 	mOutputContext.clear();
-
+*/
 	sem_post(&mMutex);
 }
   
@@ -156,7 +193,7 @@ void A5Cpu::SpinLock(bool state)
 	{
 		mWait = true;
 
-		while(!mWaiting)
+		while(mWaiting != mNumThreads)
 		{
 			usleep(100);
 		}
@@ -167,113 +204,60 @@ void A5Cpu::SpinLock(bool state)
 	}
 }
 
-void A5Cpu::Cancel(list<void*> ctxList)
+void A5Cpu::Cancel(uint64_t job_id)
 {
 	sem_wait(&mMutex);
 
+	if(mRequests.find(job_id) != mRequests.end())
 	{
-		list<size_t> deleteList;
-		
-		/* go through all ctx to delete */
-		list<void*>::iterator itCtxList;
-		for( itCtxList = ctxList.begin(); itCtxList != ctxList.end(); ++itCtxList) 
-		{
-			/* build a list of positions where these entries are */
-			size_t pos = 0;
-			deque<void*>::iterator queued;
-			for( queued = mInputContext.begin(); queued != mInputContext.end(); ++queued ) 
-			{
-				void *a = (*itCtxList);
-				void *b = (*queued);
-
-				if(a == b)
-				{
-					deleteList.push_back(pos);
-				}
-				pos++;
-			}
-		}
-
-		size_t deleted = 0;
-		list<size_t>::iterator itDeleteList;
-		for( itDeleteList = deleteList.begin(); itDeleteList != deleteList.end(); ++itDeleteList ) 
-		{
-			/* if some entries were delete before, the position in the deque needs to be corrected */
-			size_t pos = (*itDeleteList) - deleted;
-
-			mInputStart.erase(mInputStart.begin() + pos);
-			mInputTarget.erase(mInputTarget.begin() + pos);
-			mInputRound.erase(mInputRound.begin() + pos);
-			mInputRoundStop.erase(mInputRoundStop.begin() + pos);
-			mInputAdvance.erase(mInputAdvance.begin() + pos);
-			mInputContext.erase(mInputContext.begin() + pos);
-
-			deleted++;
-		}
+		mRequestCount -= mRequests[job_id].size(); 
+		mRequests[job_id].clear();
+		mRequests.erase(job_id);
 	}
 
-    /* Output queues */
+	if(mResults.find(job_id) != mResults.end())
 	{
-		list<size_t> deleteList;
-		
-		/* go through all ctx to delete */
-		list<void*>::iterator itCtxList;
-		for( itCtxList = ctxList.begin(); itCtxList != ctxList.end(); ++itCtxList) 
-		{
-			/* build a list of positions where these entries are */
-			size_t pos = 0;
-			deque<void*>::iterator queued;
-			for( queued = mOutputContext.begin(); queued != mOutputContext.end(); ++queued ) 
-			{
-				void *a = (*itCtxList);
-				void *b = (*queued);
-
-				if(a == b)
-				{
-					deleteList.push_back(pos);
-				}
-				pos++;
-			}
-		}
-
-		size_t deleted = 0;
-		list<size_t>::iterator itDeleteList;
-		for( itDeleteList = deleteList.begin(); itDeleteList != deleteList.end(); ++itDeleteList ) 
-		{
-			/* if some entries were delete before, the position in the deque needs to be corrected */
-			size_t pos = (*itDeleteList) - deleted;
-
-			mOutput.erase(mOutput.begin() + pos);
-			mOutputStartRound.erase(mOutputStartRound.begin() + pos);
-			mOutputContext.erase(mOutputContext.begin() + pos);
-
-			deleted++;
-		}
+		mResults[job_id].clear();
+		mResults.erase(job_id);
 	}
-
-
+	
 	sem_post(&mMutex);
 }
   
-bool A5Cpu::PopResult(uint64_t& start_value, uint64_t& stop_value,
+bool A5Cpu::PopResult(uint64_t& job_id, uint64_t& start_value, uint64_t& stop_value,
                       int32_t& start_round, void** context)
 {
-  bool res = false;
-  sem_wait(&mMutex);
-  if (mOutput.size()>0) {
-    res = true;
-    pair<uint64_t,uint64_t> res = mOutput.front();
-    mOutput.pop_front();
-    start_value = res.first;
-    stop_value = res.second;
-    start_round = mOutputStartRound.front();
-    mOutputStartRound.pop_front();
-    void* ctx = mOutputContext.front();
-    mOutputContext.pop_front();
-    if (context) *context = ctx;
-  }
-  sem_post(&mMutex);
-  return res;
+    sem_wait(&mMutex);
+
+	/* find any pending job */
+	map<uint64_t,deque<t_a5_result>>::iterator it = mResults.begin();
+
+	/* and return the first result available */
+	while(it != mResults.end())
+	{
+		if(it->second.size() > 0)
+		{
+			t_a5_result res = it->second.front();
+			it->second.pop_front();
+
+			job_id = res.job_id;
+			start_value = res.start_value;
+			stop_value = res.end_value;
+			start_round = res.start_round;
+			if(context)
+			{
+				*context = res.context;
+			}
+
+			sem_post(&mMutex);
+			return true;
+		}
+
+		it++;
+	}
+
+    sem_post(&mMutex);
+	return false;
 }
 
 void A5Cpu::Process(void)
@@ -282,6 +266,7 @@ void A5Cpu::Process(void)
   struct timeval tStart;
   struct timeval tEnd;
 
+  uint64_t job_id;
   uint64_t start_point;
   uint64_t target;
   uint64_t start_point_r;
@@ -294,41 +279,60 @@ void A5Cpu::Process(void)
   for(;;) {
     if (!mRunning) break;
 
-	while(mWait)
+	if(mWait)
 	{
-		mWaiting = true;
-		usleep(0);
+		sem_wait(&mMutex);
+		mWaiting++;
+	    sem_post(&mMutex);
+		while(mWait)
+		{
+			usleep(0);
+		}
+		sem_wait(&mMutex);
+		mWaiting--;
+	    sem_post(&mMutex);
 	}
-	mWaiting = false;
 
     /* Get input */
     sem_wait(&mMutex);
-	mWaiting = false;
-    if (mInputStart.size()) {
-      start_point = mInputStart.front();
-      mInputStart.pop_front();
-      target = mInputTarget.front();
-      mInputTarget.pop_front();
-      start_point_r = ReverseBits(start_point);
-      start_round = mInputRound.front();
-      mInputRound.pop_front();
-      stop_round = mInputRoundStop.front();
-      mInputRoundStop.pop_front();
-      advance = mInputAdvance.front();
-      mInputAdvance.pop_front();
-      context =  mInputContext.front();
-      mInputContext.pop_front();
-      map< uint32_t, class Advance* >::iterator it = mAdvances.find(advance);
-      if (it==mAdvances.end()) {
-          class Advance* adv = new Advance(advance, mMaxRound);
-          mAdvances[advance] = adv;
-          RFtable = adv->getRFtable();
-      } else {
-          RFtable = (*it).second->getRFtable();
-      }
-      active = true;
-      // printf("Insert\n");
-    }
+
+	/* find any pending job */
+	map<uint64_t,deque<t_a5_request>>::iterator it = mRequests.begin();
+
+	/* and queue the first request */
+	while(!active && it != mRequests.end())
+	{
+		if(it->second.size() > 0)
+		{
+			t_a5_request req = it->second.front();
+			it->second.pop_front();
+			mRequestCount--;
+
+			job_id = req.job_id;
+			start_point = req.start_value;
+			target = req.target;
+			start_round = req.start_round;
+			stop_round = req.end_round;
+			advance = req.advance;
+			context = req.context;
+
+			start_point_r = ReverseBits(start_point);
+
+			map< uint32_t, class Advance* >::iterator it = mAdvances.find(advance);
+			if (it==mAdvances.end()) 
+			{
+				class Advance* adv = new Advance(advance, mMaxRound);
+				mAdvances[advance] = adv;
+				RFtable = adv->getRFtable();
+			} else 
+			{
+				RFtable = (*it).second->getRFtable();
+			}
+			active = true;
+		}
+		it++;
+	}
+
     sem_post(&mMutex);
 
     if (!active) {
@@ -454,18 +458,24 @@ void A5Cpu::Process(void)
 
     //printf("Completed in %i ms\n", uSecs/1000);
 
-    /* Report completed chains */
-    sem_wait(&mMutex);
 
     uint64_t res = (((uint64_t)out_hi)<<32)|out_lo;
     res = ReverseBits(res);
-    mOutput.push_back( pair<uint64_t,uint64_t>(start_point,res) );
-    mOutputStartRound.push_back( start_round );
-    mOutputContext.push_back( context );
-    active = false;
 
+	t_a5_result result;
+
+	result.job_id = job_id;
+	result.start_value = start_point;
+	result.end_value = res;
+	result.start_round = start_round;
+	result.context = context;
+
+	active = false;
+
+    /* Report completed chains */
+    sem_wait(&mMutex);
+	mResults[job_id].push_back(result);
     sem_post(&mMutex);
-
   }
 }
 
@@ -622,30 +632,27 @@ bool DLL_PUBLIC A5Init(int max_rounds, int condition, int threads)
   return true;
 }
 
-int  DLL_PUBLIC A5Submit(uint64_t start_value, int32_t start_round,
-                            uint32_t advance, void* context)
+int  DLL_PUBLIC A5Submit(uint64_t job_id, uint64_t start_value, int32_t start_round, uint32_t advance, void* context)
 {
   if (a5Instance) {
-      return a5Instance->Submit(start_value, 0ULL, start_round, -1, advance, context);
+      return a5Instance->Submit(job_id, start_value, 0ULL, start_round, -1, advance, context);
   }
   return -1; /* Error */
 }
 
-int  DLL_PUBLIC A5KeySearch(uint64_t start_value, uint64_t target, int32_t start_round,
-                               int32_t stop_round, uint32_t advance, void* context)
+int  DLL_PUBLIC A5KeySearch(uint64_t job_id, uint64_t start_value, uint64_t target, int32_t start_round, int32_t stop_round, uint32_t advance, void* context)
 {
   if (a5Instance) {
-      return a5Instance->Submit(start_value, target, start_round, stop_round, advance, context);
+      return a5Instance->Submit(job_id, start_value, target, start_round, stop_round, advance, context);
   }
   return -1; /* Error */
 }
 
 
-bool DLL_PUBLIC A5PopResult(uint64_t& start_value, uint64_t& stop_value,
-                               int32_t& start_round, void** context)
+bool DLL_PUBLIC A5PopResult(uint64_t& job_id, uint64_t& start_value, uint64_t& stop_value, int32_t& start_round, void** context)
 {
   if (a5Instance) {
-      return a5Instance->PopResult(start_value, stop_value, start_round, context);
+      return a5Instance->PopResult(job_id, start_value, stop_value, start_round, context);
   }
   return false; /* Nothing popped */ 
 }
@@ -675,10 +682,10 @@ void DLL_PUBLIC A5Clear()
 	}
 }
 
-void DLL_PUBLIC A5Cancel(list<void*> ctxList)
+void DLL_PUBLIC A5Cancel(uint64_t job_id)
 {  
 	if (a5Instance) {
-		a5Instance->Cancel(ctxList);
+		a5Instance->Cancel(job_id);
 	}
 }
 

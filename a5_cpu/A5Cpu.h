@@ -57,21 +57,38 @@
 
 using namespace std;
 
+typedef struct
+{
+	uint64_t job_id;
+	uint64_t start_value;
+	uint32_t start_round;
+	uint32_t end_round;
+	uint32_t advance;
+	uint64_t target;
+	void* context;
+} t_a5_request;
+
+typedef struct
+{
+	uint64_t job_id;
+	uint64_t start_value;
+	uint64_t end_value;
+	uint32_t start_round;
+	void* context;
+} t_a5_result;
+
 class DLL_LOCAL A5Cpu {
 public:
   A5Cpu(int max_rounds, int condition, int threads);
   ~A5Cpu();
 
   void Shutdown();
-  int  Submit(uint64_t start_value, uint64_t target_value, int32_t start_round, 
-              int32_t stop_round, uint32_t advance, void* context);
-
-  bool PopResult(uint64_t& start_value, uint64_t& stop_value,
-                 int32_t& start_round, void** context);
+  int  Submit(uint64_t job_id, uint64_t start_value, uint64_t target_value, int32_t start_round, int32_t stop_round, uint32_t advance, void* context);
+  bool PopResult(uint64_t& job_id, uint64_t& start_value, uint64_t& stop_value, int32_t& start_round, void** context);
   bool IsIdle();
   void SpinLock(bool state);
   void Clear();
-  void Cancel(list<void*> ctxList);
+  void Cancel(uint64_t job_id);
   static uint64_t ReverseBits(uint64_t r);
   static int PopcountNibble(int x);
 
@@ -95,20 +112,13 @@ private:
 
   bool mRunning; /* false stops worker thread */
   bool mWait;
-  bool mWaiting;
+  int mWaiting;
 
   /* Mutex semaphore to protect the queues */
   sem_t mMutex;
-  deque<uint64_t> mInputStart;
-  deque<uint64_t> mInputTarget;
-  deque<int32_t>  mInputRound;
-  deque<int32_t>  mInputRoundStop;
-  deque<uint32_t> mInputAdvance;
-  deque<void*>    mInputContext;
-  /* OUtput queues */
-  deque< pair<uint64_t,uint64_t> > mOutput;
-  deque<int32_t>  mOutputStartRound;
-  deque<void*>    mOutputContext;
+  uint64_t mRequestCount;
+  map<uint64_t,deque<t_a5_request>> mRequests;
+  map<uint64_t,deque<t_a5_result>> mResults;
 
   map< uint32_t, class Advance* > mAdvances;
 };

@@ -1,6 +1,7 @@
 
 #include "NcqDevice.h"
 
+#include "Kraken.h"
 #include <assert.h>
 #include <unistd.h>
 #include <fcntl.h>
@@ -23,6 +24,7 @@ NcqDevice::NcqDevice(const char* pzDevNode)
 	mWait = false;
 	mWaiting = false;
 	mStartSector = 0;
+	mRequestCount = 0;
 
 	mDeviceName = strdup(pzDevNode);
 	char *offsetstr = strchr(mDeviceName, '+');
@@ -99,7 +101,7 @@ NcqDevice::NcqDevice(const char* pzDevNode)
     for (int i=0; i<NCQ_REQUESTS; i++) {
         mMappings[i].req = NULL;
         mMappings[i].addr = NULL;  /* idle */
-        mMappings[i].cancel = false;
+        mMappings[i].cancelled = false;
         mMappings[i].next_free = i - 1;
 #ifdef WIN32
 		mMappings[i].overlapped.Offset = 0; 
@@ -150,7 +152,7 @@ void* NcqDevice::thread_stub(void* arg)
     return NULL;
 }
  
-void NcqDevice::Request(class NcqRequestor* req, uint64_t blockno)
+void NcqDevice::Request(uint64_t job_id, class NcqRequestor* req, uint64_t blockno)
 {
 #if 0
     lseek(mDevice, blockno*4096, SEEK_SET );
@@ -160,17 +162,35 @@ void NcqDevice::Request(class NcqRequestor* req, uint64_t blockno)
 #else
     sem_wait(&mMutex);
     request_t qr;
+	qr.job_id = job_id;
     qr.req = req;
     qr.blockno = blockno;
-    mRequests.push(qr);
+    mRequests[job_id].push_back(qr);
+	mRequestCount++;
     sem_post(&mMutex);
 #endif
 }
 
-void NcqDevice::Cancel(class NcqRequestor* req)
+void NcqDevice::Cancel(uint64_t job_id)
 {
-    sem_wait(&mMutex);
+	sem_wait(&mMutex);
 
+	/* remove all requests for this job id */
+	if(mRequests.find(job_id) != mRequests.end())
+	{
+		mRequestCount -= mRequests[job_id].size(); 
+		mRequests[job_id].clear();
+		mRequests.erase(job_id);
+	}
+
+	/* search for any active transfer with this job id */
+	for (int i=0; i<NCQ_REQUESTS; i++) 
+	{
+        if (mMappings[i].req && mMappings[i].job_id == job_id) 
+		{
+			mMappings[i].cancelled = true;
+		}
+	}
 
 	sem_post(&mMutex);
 }
@@ -193,32 +213,60 @@ void NcqDevice::SpinLock(bool state)
 	}
 }
 
-/* clear all pending requests */
-void NcqDevice::Clear()
-{
-    sem_wait(&mMutex);
-
-	while(mRequests.size() > 0)
-	{
-		mRequests.pop();
-	}
-	
-    for (int i=0; i<NCQ_REQUESTS; i++) 
-	{
-		mMappings[i].cancel = true;
-	}
-    sem_post(&mMutex);
-}
-
 
 char* NcqDevice::GetDeviceStats()
 {
 	return mDeviceStats;
 }
 
+
+bool NcqDevice::PopRequest(mapRequest_t* job)
+{
+	sem_wait(&mMutex);
+
+	/* none available */
+	if(mRequestCount == 0)
+	{
+		sem_post(&mMutex);
+		return false;
+	}
+
+	/* find any pending job */
+	map<uint64_t,deque<request_t>>::iterator it = mRequests.begin();
+
+	/* and queue the first request */
+	while(it != mRequests.end())
+	{
+		if(it->second.size() > 0)
+		{
+			request_t req = it->second.front();
+			it->second.pop_front();
+
+			uint64_t offset = mStartSector * 512 + req.blockno * 4096;
+
+			job->job_id = req.job_id;
+			job->req = req.req;
+            job->blockno = req.blockno;
+			job->cancelled = false;
+			job->overlapped.Offset = offset & 0xFFFFFFFF;
+			job->overlapped.OffsetHigh = (offset >> 32);
+
+			mRequestCount--;
+
+			sem_post(&mMutex);
+
+			return true;
+		}
+		it++;
+	}
+
+    sem_post(&mMutex);
+	return false;
+}
+
+
 void NcqDevice::WorkerThread()
 {
-#ifdef WIN32
 	bool idle = false;
 	struct timeval stopTime;
 
@@ -238,31 +286,52 @@ void NcqDevice::WorkerThread()
         sem_wait(&mMutex);
 
         /* schedule requests */
-        while ((mFreeMap>=0)&&(mRequests.size()>0))
+        while ((mFreeMap>=0)&&(mRequestCount>0))
         {
 			queued = true;
 
             int free = mFreeMap;
             mFreeMap = mMappings[free].next_free;
-            request_t qr = mRequests.front();
-            mRequests.pop();
 
-			uint64_t offset = mStartSector * 512 + qr.blockno * 4096;
+			if(!PopRequest(&mMappings[free]))
+			{
+				printf("FAIL");
+			}
 
-            mMappings[free].req = qr.req;
-            mMappings[free].blockno = qr.blockno;
-			mMappings[free].cancel = false;
-			mMappings[free].overlapped.Offset = offset & 0xFFFFFFFF;
-			mMappings[free].overlapped.OffsetHigh = (offset >> 32);
-
+			bool failed = false;
+			int errorcode = 0;
+#ifdef WIN32
+			/* use readfile with overlapped to fire a queued background read */
             BOOL ret = ReadFile(mDevice, mMappings[free].buffer, 4096, NULL, &(mMappings[free].overlapped));
-
 			int err = GetLastError();
+
+			/* ReadFile will fail and the error status is "io pending" */
 			if(ret == FALSE && (err != ERROR_IO_PENDING))
+			{
+				failed = true;
+				errorcode = err;
+			}
+#else
+			/* map the block into memory */
+            mMappings[free].addr = mmap64(NULL, 4096, PROT_READ, MAP_PRIVATE|MAP_FILE, mDevice, qr.blockno*4096);
+
+			/* any problems? */
+			if(mMappings[free].addr == MAP_FAILED)
+			{
+				failed = true;
+				errorcode = errno;
+			}
+			else
+			{
+				/* tell the memory manager that we will need that block soon */
+				madvise(mMappings[free].addr, 4096, MADV_WILLNEED);
+			}
+#endif
+			if(failed)
 			{
 		        sem_post(&mMutex);
 				mRunning = false;
-				printf (" [E] ReadFile on device '%s' failed with code %i.\r\n", mDeviceName, err);
+				printf (" [E] ReadFile on device '%s' failed with code %i.\r\n", mDeviceName, errorcode);
 				printf (" [E] Aborting reader thread. No further processing possible.\r\n");
 				return;
 			}
@@ -275,31 +344,58 @@ void NcqDevice::WorkerThread()
 		{
             if (mMappings[i].req) 
 			{
+				bool finished = false;
 				queued = true;
+					
+#ifdef WIN32
+				/* this block was already read? */
 				DWORD bytesRead = 0;
 				BOOL ret = GetOverlappedResult(mDevice, &(mMappings[i].overlapped), &bytesRead, FALSE);
+				
+				/* seems so */
+                if (ret == TRUE && bytesRead == 4096) 
+				{
+					finished = true;
+				}
+#else				
+				unsigned char core[4];
 
+				/* check if the page was already loaded */
+                mincore(mMappings[i].addr, 4096, core);
+                if (core[0] & 0x01) 
+				{
+					finished = true;
+                }
+				else
+				{
+					/* nag again... */
+                    madvise(mMappings[i].addr, 4096, MADV_WILLNEED);
+				}
+#endif
                 if (ret == TRUE && bytesRead == 4096) 
 				{
 					mBlocksRead++;
-					if(!mMappings[i].cancel)
+					if(!mMappings[i].cancelled)
 					{
 						mMappings[i].req->processBlock(mMappings[i].buffer);
 					}
                     mMappings[i].req = NULL;
-                    mMappings[i].cancel = false;
+                    mMappings[i].cancelled = false;
+						
+#ifndef WIN32
+					/* not needed anymore */
+                    munmap(mMappings[i].addr, 4096);
+#endif
 
                     /* Add to free list */
-                    //sem_wait(&mMutex);
                     mMappings[i].next_free = mFreeMap;
                     mFreeMap = i;
-                    //sem_post(&mMutex);
                 }
             }
         }
 
 
-		/* was idle but now have jobs */
+		/* was idle but now we have jobs */
 		if(idle && queued)
 		{
 			gettimeofday(&mStartTime, NULL);
@@ -334,51 +430,4 @@ void NcqDevice::WorkerThread()
 			usleep(500);
 		}
     }
-#else
-    unsigned char core[4];
-
-    while (mRunning) {
-        usleep(500);
-        sem_wait(&mMutex);
-        /* schedule requests */
-        while ((mFreeMap>=0)&&(mRequests.size()>0))
-        {
-            int free = mFreeMap;
-            mFreeMap = mMappings[free].next_free;
-            request_t qr = mRequests.front();
-            mRequests.pop();
-            mMappings[free].req = qr.req;
-            mMappings[free].blockno = qr.blockno;
-            mMappings[free].addr = mmap64(NULL, 4096, PROT_READ,
-                                          MAP_PRIVATE|MAP_FILE, mDevice,
-                                          qr.blockno*4096);
-            // printf("Mapped %p %lli\n", mMappings[free].addr, qr.blockno);
-            madvise(mMappings[free].addr,4096,MADV_WILLNEED);
-        }
-        sem_post(&mMutex);
-
-        /* Check request */
-        for (int i=0; i<NCQ_REQUESTS; i++) {
-            if (mMappings[i].addr) {
-                mincore(mMappings[i].addr,4096,core);
-                if (core[0]&0x01) {
-                    // Debug disk access
-                    // printf("%c",mDevC);
-                    // fflush(stdout);
-                    /* mapped & ready for use */
-                    mMappings[i].req->processBlock(mMappings[i].addr);
-                    munmap(mMappings[i].addr,4096);
-                    mMappings[i].addr = NULL;
-                    /* Add to free list */
-                    sem_wait(&mMutex);
-                    mMappings[i].next_free = mFreeMap;
-                    mFreeMap = i;
-                    sem_post(&mMutex);
-                } else {
-                    madvise(mMappings[i].addr,4096,MADV_WILLNEED);
-                }
-            }
-        }
-    }
-#endif
 }

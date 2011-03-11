@@ -45,8 +45,7 @@ void ApplyIndexFunc(uint64_t& start_index, int bits)
     start_index = kr02_mergebits((w<<bits)|start_index);
 }
 
-Fragment::Fragment(uint64_t plaintext, unsigned int round,
-                   DeltaLookup* table, unsigned int advance) :
+Fragment::Fragment(uint64_t plaintext, unsigned int round, DeltaLookup* table, unsigned int advance) :
     mKnownPlaintext(plaintext),
     mNumRound(round),
     mAdvance(advance),
@@ -54,25 +53,11 @@ Fragment::Fragment(uint64_t plaintext, unsigned int round,
     mState(0),
     mEndpoint(0),
     mBlockStart(0),
-    mStartIndex(0),
-	mCancelled(0)
+    mStartIndex(0)
 {
 }
 
-void Fragment::cancel()
-{
-	if(mState == 1)
-	{
-		mTable->Cancel(this);
-	}
-	else
-	{
-		mState = 0;
-	}
-	mCancelled = true;
-}
-
-void Fragment::processBlock(const void* pDataBlock)
+bool Fragment::processBlock(const void* pDataBlock)
 {
     int res = mTable->CompleteEndpointSearch(pDataBlock, mBlockStart, mEndpoint, mStartIndex);
 
@@ -82,50 +67,59 @@ void Fragment::processBlock(const void* pDataBlock)
         ApplyIndexFunc(search_rev, 34);
 		if (Kraken::getInstance()->isUsingAti()) {
             if (mNumRound) {
-                int res = A5AtiSubmitPartial(search_rev, mNumRound, mAdvance, this);
+                int res = A5AtiSubmitPartial(mJobId, search_rev, mNumRound, mAdvance, this);
                 if (res<0) printf(" [E] Failed to queue A5Ati job.\n");
                 mState = 3;
             } else {
-                A5CpuKeySearch(search_rev, mKnownPlaintext, 0, mNumRound+1, mAdvance, this);
+                A5CpuKeySearch(mJobId, search_rev, mKnownPlaintext, 0, mNumRound+1, mAdvance, this);
                 mState = 2;
             }
         } else {
-            A5CpuKeySearch(search_rev, mKnownPlaintext, 0, mNumRound+1, mAdvance, this);
+            A5CpuKeySearch(mJobId, search_rev, mKnownPlaintext, 0, mNumRound+1, mAdvance, this);
             mState = 2;
         }
     } else {
-        /* not found */
-        return Kraken::getInstance()->removeFragment(this);
+		Kraken::getInstance()->queueFragmentRemoval(this, false, 0);
     }
+
+	return true;
 }
 
-void Fragment::requeueTransfer()
+bool Fragment::handleSearchResult(uint64_t result, int start_round)
 {
-	if (mState==1 && !mCancelled) {
-        mTable->StartEndpointSearch(this, mEndpoint, mBlockStart);
-	}
-}
-
-void Fragment::handleSearchResult(uint64_t result, int start_round)
-{
-    if (mState==0) {
+    if (mState==0) 
+	{
         mEndpoint = result;
-        mTable->StartEndpointSearch(this, mEndpoint, mBlockStart);
+        mTable->StartEndpointSearch(mJobId, this, mEndpoint, mBlockStart);
         mState = 1;
-        if (mBlockStart==0ULL) {
+        if (mBlockStart==0ULL) 
+		{
             /* Endpoint out of range */
-            return Kraken::getInstance()->removeFragment(this);
+			Kraken::getInstance()->queueFragmentRemoval(this, false, 0);
+			return false;
         }
-    } else if (mState==2) {
-        if (start_round<0) {
+    } 
+	else if (mState==2) 
+	{
+        if (start_round<0) 
+		{
             /* Found */
-            Kraken::getInstance()->reportFind(result, this);
+            Kraken::getInstance()->queueFragmentRemoval(this, true, result);
+			return false;
         }
-        return Kraken::getInstance()->removeFragment(this);
-    } else {
+		else
+		{
+			Kraken::getInstance()->queueFragmentRemoval(this, false, 0);
+			return false;
+		}
+    } 
+	else 
+	{
         /* We are here because of a partial GPU search */
         /* search final round with CPU */
-        A5CpuKeySearch(result, mKnownPlaintext, mNumRound-1, mNumRound+1, mAdvance, this);
+        A5CpuKeySearch(mJobId, result, mKnownPlaintext, mNumRound-1, mNumRound+1, mAdvance, this);
         mState = 2;
     }
+
+	return true;
 }

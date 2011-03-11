@@ -16,46 +16,43 @@
 
 class Fragment : public NcqRequestor {
 public:
-    Fragment(uint64_t plaintext, unsigned int round,
-                    DeltaLookup* table, unsigned int advance);
-    void processBlock(const void* pDataBlock);
+    Fragment(uint64_t plaintext, unsigned int round, DeltaLookup* table, unsigned int advance);
+    bool processBlock(const void* pDataBlock);
 
-    void setBitPos(int pos) {mBitPos=pos;}
-    void setRef(int count, int countRef, char *bitsRef, int clientId, int jobId) 
+    void setBitPos(size_t pos) {mBitPos=pos;}
+    void setRef(int count, int countRef, char *bitsRef, int clientId, uint64_t jobId) 
 	{
 		mCount=count;
 		mCountRef=countRef;
 		mBitsRef=bitsRef;
 		mClientId=clientId;
-		mJobNum=jobId;
+		mJobId=jobId;
 	}
 	
 	unsigned int getAdvance() {return mAdvance;}
-    int getBitPos() {return mBitPos;}
+    size_t getBitPos() {return mBitPos;}
     int getState() {return mState;}
     int getCount() {return mCount;}
     int getCountRef() {return mCountRef;}
     char *getBitsRef() {return mBitsRef;}
-    int getJobNum() {return mJobNum;}
+    uint64_t getJobNum() {return mJobId;}
     int getClientId() {return mClientId;}
 	void cancel();
 
-	void requeueTransfer();
-    void handleSearchResult(uint64_t result, int start_round);
+    bool handleSearchResult(uint64_t result, int start_round);
 
 private:
+	uint64_t mJobId;
     uint64_t mKnownPlaintext;
     unsigned int mNumRound;
     unsigned int mAdvance;
     DeltaLookup* mTable;
-    int mBitPos;
+    size_t mBitPos;
     int mState;
 	int mCount;
 	int mCountRef;
 	char* mBitsRef;
-    int mJobNum;
     int mClientId;
-	bool mCancelled;
 
     uint64_t mEndpoint;
     uint64_t mBlockStart;

@@ -19,14 +19,12 @@ static bool isDllError  = false;
 
 static bool (*fPipelineInfo)(int &length) = NULL;
 static bool (*fInit)(int max, int cond, unsigned int mask, int mult) = NULL;
-static int  (*fSubmit)(uint64_t value, unsigned int start,
-                uint32_t id, void* ctx) = NULL;
-static int  (*fSubmitPartial)(uint64_t value, unsigned int stop,
-                       uint32_t id, void* ctx ) = NULL;
-static bool (*fPopResult)(uint64_t& start, uint64_t& stop, void** ctx) = NULL;
+static int  (*fSubmit)(uint64_t job_id, uint64_t value, unsigned int start, uint32_t id, void* ctx) = NULL;
+static int  (*fSubmitPartial)(uint64_t job_id, uint64_t value, unsigned int stop, uint32_t id, void* ctx ) = NULL;
+static bool (*fPopResult)(uint64_t& job_id, uint64_t& start, uint64_t& stop, void** ctx) = NULL;
 static bool (*fIsIdle)(void) = NULL;
 static void (*fClear)(void) = NULL;
-static void (*fCancel)(list<void*> ctxList) = NULL;
+static void (*fCancel)(uint64_t job_id) = NULL;
 static void (*fSpinLock)(bool state) = NULL;
 static void (*fShutdown)(void) = NULL;
 
@@ -109,21 +107,19 @@ bool A5AtiPipelineInfo(int &length)
     }
 }
   
-int A5AtiSubmit(uint64_t start_value, unsigned int start_round,
-                  uint32_t advance, void* context)
+int A5AtiSubmit(uint64_t job_id, uint64_t start_value, uint32_t start_round, uint32_t advance, void* context)
 {
     if (isDllLoaded) {
-        return fSubmit(start_value, start_round, advance, context);
+        return fSubmit(job_id, start_value, start_round, advance, context);
     } else {
         return -1;
     }
 }
 
-int  A5AtiSubmitPartial(uint64_t start_value, unsigned int stop_round,
-                          uint32_t advance, void* context)
+int  A5AtiSubmitPartial(uint64_t job_id, uint64_t start_value, uint32_t end_round, uint32_t advance, void* context)
 {
     if (isDllLoaded) {
-        return fSubmitPartial(start_value, stop_round, advance, context);
+        return fSubmitPartial(job_id, start_value, end_round, advance, context);
     } else {
         return -1;
     }
@@ -145,25 +141,24 @@ void A5AtiClear()
 	}  
 }
 
-void A5AtiCancel(list<void*> ctxList)
+void A5AtiCancel(uint64_t job_id)
 {
 	if (isDllLoaded) {
-		fCancel(ctxList);
+		fCancel(job_id);
 	}  
 }
 
 void A5AtiSpinLock(bool state)
 {
-  if (isDllLoaded) {
-      fSpinLock(state);
-  }  
+	if (isDllLoaded) {
+		fSpinLock(state);
+	}  
 }
 
-bool A5AtiPopResult(uint64_t& start_value, uint64_t& stop_value,
-                      void** context)
+bool A5AtiPopResult(uint64_t& job_id, uint64_t& start_value, uint64_t& stop_value, void** context)
 {
     if (isDllLoaded) {
-        return fPopResult(start_value, stop_value, context);
+        return fPopResult(job_id, start_value, stop_value, context);
     } else {
         return false;
     }

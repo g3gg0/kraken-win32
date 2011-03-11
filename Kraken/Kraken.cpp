@@ -41,7 +41,7 @@ Kraken::Kraken(const char* config, int server_port) :
 	printf("-----------------\r\n");
 	printf("\r\n");
 
-    string configFile = string(config)+string("tables.conf");
+    string configFile = string(config)+DIR_SEP+string("tables.conf");
     FILE* fd = fopen(configFile.c_str(),"rb");
     if (fd==NULL) {
         printf(" [E] Could not find %s\n", configFile.c_str());
@@ -136,7 +136,7 @@ Kraken::Kraken(const char* config, int server_port) :
 
     /* Init semaphore */
     sem_init( &mMutex, 0, 1 );
-    sem_init( &mSpinlock, 0, 1 );
+    sem_init( &mWasteMutex, 0, 1 );
 	sem_init( &mConsoleMutex, 0, 1 );
 
     A5CpuInit(8, 12, 4);
@@ -221,20 +221,29 @@ void Kraken::Shutdown()
 /**
  *  Recieve a crack command and insert into mutex protected queue.
  */
-int Kraken::Crack(int client, const char* plaintext)
+uint64_t Kraken::Crack(int client, const char* plaintext)
 {
-	int ret = -1;
-	
+	t_job job;
+
+	/* prepare the job structure */
+	job.client_id = client;
+	job.order = string(plaintext);
+	job.max_fragments = 0;
+	job.key_found = false;
+	gettimeofday(&job.start_time, NULL);
+
+	/* lock and submit */
     sem_wait(&mMutex);
+
+	job.job_id = mRequestId;
+	mJobs[job.job_id] = job;
+    mNewJobs.push_back(job.job_id);
 	mRequests++;
 	mRequestId++;
-	ret = mRequestId;
-    mWorkIds.push(mRequestId);
-    mWorkOrders.push(string(plaintext));
-    mWorkClients.push(client);
+
     sem_post(&mMutex);
 
-	return ret;
+	return job.job_id;
 }
 
 /**
@@ -247,17 +256,22 @@ bool Kraken::Tick()
     Fragment* frag;
     int32_t start_rnd;
 
-    while (A5CpuPopResult(start_val, stop_val, start_rnd, (void**)&frag)) {
-        frag->handleSearchResult(stop_val, start_rnd);
-    }
-
-    if (mUsingAti) {
-        while (A5AtiPopResult(start_val, stop_val, (void**)&frag)) {
-            frag->handleSearchResult(stop_val, 0);
-        }
-    }
-
     sem_wait(&mMutex);
+
+	{	
+		/* we dont need the job id */
+		uint64_t job_id;
+
+		while (A5CpuPopResult(job_id, start_val, stop_val, start_rnd, (void**)&frag)) {
+			frag->handleSearchResult(stop_val, start_rnd);
+		}
+
+		if (mUsingAti) {
+			while (A5AtiPopResult(job_id, start_val, stop_val, (void**)&frag)) {
+				frag->handleSearchResult(stop_val, 0);
+			}
+		}
+	}
 
 	MEMCHECK();
 
@@ -281,74 +295,34 @@ bool Kraken::Tick()
 		}
 	}
 
-	/* finished current job and have no more work packages to assign? */
-	if ((mJobParallel || (mFragments.size()==0)) && mSubmittedStartValue.size() == 0)
+	/* any new jobs? */
+	if (mNewJobs.size() > 0)
 	{
 		char msg[256];
 
-		/* did we process a job before? */
-		if (mBusy)
-		{
-			/* yeah, inform about its result */
-/*
-			struct timeval tv;
-			gettimeofday(&tv, NULL);
-			unsigned long diff = 1000000 * (tv.tv_sec - mStartTime.tv_sec);
-			diff += tv.tv_usec - mStartTime.tv_usec;
-
-			snprintf(details,128,"search took %i sec",(int)(diff/1000000));
-
-			if (mFoundKeys == 0)
-			{
-				mFailedKc++;
-				sprintf(msg, "404 %i Key not found (%s)\r\n", mCurrentId, details);
-			}
-			else
-			{
-				mFoundKc++;
-				sprintf(msg, "200 %i ", mCurrentId);
-				for(int pos = 0; pos < 8; pos++)
-				{
-					sprintf(builder, "%02X", mKeyResult[pos]);
-					strcat(msg, builder);
-				}
-
-				strcat(msg," Key found (");
-				strcat(msg, details);
-				strcat(msg,")\r\n");
-			}
-
-			sendMessage(msg, mCurrentClient);
-
-			mFoundKeys = 0;
-*/
-			mBusy = false;
-		}
-
         /* Start a new job if there is some order */
-        if (mWorkOrders.size()>0)
+        if (mNewJobs.size() > 0)
 		{
+            mBusy = true;
+
 			if(!mTablesLoaded)
 			{
 				LoadTables();
 			}
 
-            mBusy = true;
 			mFoundKeys = 0;
 
             gettimeofday(&mStartTime, NULL);
 
-			int jobId = mWorkIds.front();
-            int client = mWorkClients.front();
-            string work = mWorkOrders.front();
+			uint64_t jobId = mNewJobs.front();
+			int client = mJobs[jobId].client_id;
+            string work = mJobs[jobId].order;
 
-            mWorkIds.pop();
-            mWorkClients.pop();
-            mWorkOrders.pop();
+            mNewJobs.pop_front();
 
             char *plaintext = strdup(work.c_str());
 
-			sprintf(msg, "102 %i Processing your request now\r\n", jobId);
+			snprintf(msg, 256, "102 %i Processing your request now\r\n", (int)jobId);
 			sendMessage(msg, client);
 
 			uint32_t count = -1;
@@ -421,7 +395,7 @@ bool Kraken::Tick()
 			}
 
 			size_t len = strlen(plaintext);
-			int samples = len - 63;
+			size_t samples = len - 63;
 			int submitted = 0;
             for (size_t i=0; i<samples; i++)
 			{
@@ -434,10 +408,12 @@ bool Kraken::Tick()
                         plainrev = plainrev | (1ULL<<(63-j));
                     }
                 }
+
+				/* go through all loaded tables */
                 tableListIt it = mTables.begin();
                 while (it!=mTables.end())
 				{
-					/* Skip if not active */
+					/* Skip if not marked active */
 					if (mActiveMap[(*it).first]==0) {
 						it++;
 						continue;
@@ -448,12 +424,18 @@ bool Kraken::Tick()
                         Fragment* fr = new Fragment(plainrev,k,(*it).second,(*it).first);
                         fr->setBitPos(i);
 						fr->setRef(count, countRef, bitsRef, client, jobId);
-                        mFragments[fr] = 0;
 
-						mSubmittedStartValue.push(plain);
-						mSubmittedStartRound.push(k);
-						mSubmittedAdvance.push((*it).first);
-						mSubmittedContext.push(fr);
+						mJobs[jobId].fragments[fr] = 0;
+
+						/* submit that job to be processed */
+						if(mUsingAti)
+						{
+							A5AtiSubmit(jobId, plain, k, (*it).first, fr);
+						}
+						else
+						{
+							A5CpuSubmit(jobId, plain, k, (*it).first, fr);
+						}
 
 						submitted++;
                     }
@@ -461,117 +443,119 @@ bool Kraken::Tick()
                 }
             }
 
-			struct timeval start_time;
-			gettimeofday(&start_time, NULL);
-			mTimingMap[jobId] = start_time;
-			mJobMap[jobId] = submitted;
-			mJobMapMax[jobId] = submitted;
+			mJobs[jobId].max_fragments = submitted;
+
+			/* no tables active for this job */
+			if(!submitted)
+			{
+				cancelJobFragments(jobId, "400 No tables match your criteria.\r\n");
+			}
 
 			free(plaintext);
         }
     }
-
-    /* assign submitted orders to free devices */
-    if (mSubmittedStartValue.size()>0)
+	else
 	{
-		bool assigned = false;
-
-		do
-		{
-			bool atiFree = false;
-			bool cpuFree = false;
-
-			if(mUsingAti)
-			{
-				if(A5AtiIsIdle())
-				{
-					atiFree = true;
-				}
-			}
-
-			if(A5CpuIsIdle())
-			{
-				cpuFree = true;
-			}
-
-			/* at least one of both devices are free */
-			if(atiFree || cpuFree || mJobParallel)
-			{
-				uint64_t start_value = mSubmittedStartValue.front();
-				unsigned int start_round = mSubmittedStartRound.front();
-				uint32_t advance = mSubmittedAdvance.front();
-				void* context = mSubmittedContext.front();
-
-				mSubmittedStartValue.pop();
-				mSubmittedStartRound.pop();
-				mSubmittedAdvance.pop();
-				mSubmittedContext.pop();
-
-#ifdef BALANCE_DEVICES
-				/* ati has priority */
-				if(atiFree) 
-				{
-					A5AtiSubmit(start_value, start_round, advance, context);
-				}
-				else
-				{
-					A5CpuSubmit(start_value, start_round, advance, context);
-				}
-#else
-				if(mUsingAti)
-				{
-					A5AtiSubmit(start_value, start_round, advance, context);
-				}
-				else
-				{
-					A5CpuSubmit(start_value, start_round, advance, context);
-				}
-#endif
-
-				assigned = true;
-			}
-			else
-			{
-				assigned = false;
-			}
-
-		} while(assigned && mSubmittedStartValue.size()>0);
+		mBusy = false;
 	}
 
-	MEMCHECK();
+	/* free the fragments that are queued for deletion */
+    sem_wait(&mWasteMutex);
+
+	map<Fragment*,int>::iterator fi = mWastedFragments.begin();
+	while(fi != mWastedFragments.end())
+	{
+		removeFragment(fi->first);
+		fi++;
+	}
+	mWastedFragments.clear();
+
+    sem_post(&mWasteMutex);
     sem_post(&mMutex);
 
     return mBusy;
 }
   
-void Kraken::clearFragments()
+/**
+ * Report a found key back to the issuing client
+ */
+void Kraken::queueFragmentRemoval(Fragment *frag, bool table_hit, uint64_t result)
 {
-	A5AtiSpinLock(true);
-	A5CpuSpinLock(true);
-	deviceSpinLock(true);
+	bool deleted = false;
+	int client_id = frag->getClientId();
+	uint64_t job_id = frag->getJobNum();
 
-	/* now clear all fragments that are somewhere being processed */
-    sem_wait(&mMutex);
+	if(table_hit)
+	{
+		unsigned char keyData[8];
+		char msg[256];
 
-	mFragments.clear();
-	mJobMap.clear();
-	mJobMapMax.clear();
-	mTimingMap.clear();
-	
-	A5CpuClear();
-	A5AtiClear();
+		/* output to client */
+		snprintf(msg, 256, "103 %i %016llX %i (found a table hit in table %i)\r\n", (int)job_id, result, (int)frag->getBitPos(), frag->getAdvance());
+		sendMessage(msg, client_id);
 
-	/* now cancel all disk transfers */
-	for (unsigned int i=0; i<mDevices.size(); i++) {
-		mDevices[i]->Clear();
-    }
-	
-	/* and let the wheel spin again */
-	A5AtiSpinLock(false);
-	A5CpuSpinLock(false);
-	deviceSpinLock(false);
+		/* was this a Kc cracking command with reference bits? */
+		if(frag->getBitsRef() != NULL)
+		{
+			if(find_kc(result, (int)frag->getBitPos(), frag->getCount(), frag->getCountRef(), frag->getBitsRef(), keyData))
+			{
+				/* Kc found, cleanup. reporting. */
+				memcpy(mJobs[job_id].key_data, keyData, 8);
+				mJobs[job_id].key_found = true;
 
-    sem_post(&mMutex);
+				sendJobResult(job_id);
+				cancelJobFragments(job_id, NULL);
+				deleted = true;
+			}
+		}
+	}
+
+	/* no hit or no key found, only remove this fragment */
+	if(!deleted)
+	{
+		sem_wait(&mWasteMutex);
+		mWastedFragments[frag] = frag->getJobNum();
+		sem_post(&mWasteMutex);
+	}
+
+	MEMCHECK();
+}
+
+
+void Kraken::sendJobResult(uint64_t job_id)
+{
+	char msg[128];
+	char builder[128];
+	char details[128];
+
+	struct timeval tv;
+	gettimeofday(&tv, NULL);
+	unsigned long diff = 1000000 * (tv.tv_sec - mJobs[job_id].start_time.tv_sec);
+	diff += tv.tv_usec - mJobs[job_id].start_time.tv_usec;
+
+	snprintf(details, 128, "search took %i sec", (int)(diff/1000000));
+
+	if(!mJobs[job_id].key_found)
+	{
+		mFailedKc++;
+		snprintf(msg, 128, "404 %i Key not found (%s)\r\n", (int)job_id, details);
+	}
+	else
+	{
+		mFoundKc++;
+		sprintf(msg, "200 %i ", (int)job_id);
+		for(int pos = 0; pos < 8; pos++)
+		{
+			sprintf(builder, "%02X", mJobs[job_id].key_data[pos]);
+			strcat(msg, builder);
+		}
+
+		strcat(msg," Key found (");
+		strcat(msg, details);
+		strcat(msg,")\r\n");
+
+	}
+	sendMessage(msg, mJobs[job_id].client_id);
 }
 
 /**
@@ -580,46 +564,24 @@ void Kraken::clearFragments()
 void Kraken::removeFragment(Fragment* frag)
 {
     sem_wait(&mMutex);
+	uint64_t job_id = frag->getJobNum();
 	
-	if(mJobMap.find(frag->getJobNum()) != mJobMap.end())
+	if(mJobs.find(job_id) != mJobs.end())
 	{
-		mJobMap[frag->getJobNum()]--;
-		if(mJobMap[frag->getJobNum()] == 0)
+		/* delete fragment */
+		map<Fragment *, int>::iterator it = mJobs[job_id].fragments.find(frag);
+		if (it!=mJobs[job_id].fragments.end()) 
+		{
+			mJobs[job_id].fragments.erase(it);
+			delete frag;
+		}
+		
+		/* no fragments anymore? */
+		if(mJobs[job_id].fragments.size() == 0)
 		{
 			/* Kc not found, cleanup. reporting. */
-			char msg[128];
-			char details[128];
-			char builder[128];
-
-			struct timeval tv;
-			gettimeofday(&tv, NULL);
-			unsigned long diff = 1000000 * (tv.tv_sec - mTimingMap[frag->getJobNum()].tv_sec);
-			diff += tv.tv_usec - mTimingMap[frag->getJobNum()].tv_usec;
-
-			mFailedKc++;
-			snprintf(details,128,"search took %i sec",(int)(diff/1000000));
-			sprintf(msg, "404 %i Key not found (%s)\r\n", frag->getJobNum(), details);
-
-			sendMessage(msg, frag->getClientId());
-
-			/* delete job from list */
-			map<unsigned int,int>::iterator it = mJobMap.find(frag->getJobNum());
-			mJobMap.erase(it);
-
-			/* delete job from list */
-			map<unsigned int,int>::iterator it2 = mJobMapMax.find(frag->getJobNum());
-			mJobMapMax.erase(it2);
-
-			/* delete timing info */
-			map<unsigned int,struct timeval>::iterator it3 = mTimingMap.find(frag->getJobNum());
-			mTimingMap.erase(it3);
-		}
-
-
-		map<Fragment*,int>::iterator it = mFragments.find(frag);
-		if (it!=mFragments.end()) {
-			mFragments.erase(it);
-			delete frag;
+			sendJobResult(job_id);
+			mJobs.erase(job_id);
 		}
 	}
 
@@ -634,10 +596,11 @@ void Kraken::deviceSpinLock(bool state)
 	}
 }
 
+
 /**
  *  Remove and delete a fragment from the work list maps
  */
-void Kraken::cancelJobFragments(int jobId)
+void Kraken::cancelJobFragments(uint64_t jobId, char *message)
 {
 	A5AtiSpinLock(true);
 	A5CpuSpinLock(true);
@@ -645,48 +608,44 @@ void Kraken::cancelJobFragments(int jobId)
 
     sem_wait(&mMutex);
 
-    map<Fragment*,int>::iterator it = mFragments.begin();
-	list<void*> fragments;
-
-	/* first cancel all fragment operations */
-    while (it!=mFragments.end()) 
+	/* now cancel all disk transfers */
+	for (unsigned int i=0; i<mDevices.size(); i++) 
 	{
-		if(it->first->getJobNum() == jobId)
+		mDevices[i]->Cancel(jobId);
+    }	
+
+	/* then cancel all fragment operations */
+    map<Fragment*,int>::iterator it = mJobs[jobId].fragments.begin();
+    while (it!=mJobs[jobId].fragments.end()) 
+	{
+		/* already in queue to be wasted? */
+		if(mWastedFragments.find(it->first) != mWastedFragments.end())
 		{
-			fragments.push_back(it->first);
+			/* remove! */
+			mWastedFragments.erase(it->first);
 		}
+		delete (it->first);
 		it++;
     }
+	mJobs[jobId].fragments.clear();
 
-	/* now cancel all disk transfers */
-	for (unsigned int i=0; i<mDevices.size(); i++) {
-		mDevices[i]->Clear();
-    }
+	A5AtiCancel(jobId);
+	A5CpuCancel(jobId);
+
+	if(message)
+	{
+		sendMessage(message, mJobs[jobId].client_id);
+	}
+
 	
-	A5AtiCancel(fragments);
-	A5CpuCancel(fragments);
-
-	/* remove tagged fragments */
-	while(fragments.size())
-	{
-		Fragment *frag = (Fragment*)fragments.front();
-		fragments.pop_front();	
-		removeFragment(frag);
-	}	
-
-	/* restart all disk pending transfers again */
-    map<Fragment*,int>::iterator it2 = mFragments.begin();
-    while (it2!=mFragments.end()) 
-	{
-		it2->first->requeueTransfer();
-		it2++;
-    }
-    sem_post(&mMutex);	
+	/* this job never existed...... job? which job? */
+	mJobs.erase(jobId);
+	
+    sem_post(&mMutex);
 	
 	A5AtiSpinLock(false);
 	A5CpuSpinLock(false);
 	deviceSpinLock(false);
-
 }
 
 void Kraken::sendMessage(char *msg, int client)
@@ -721,66 +680,6 @@ void Kraken::sendMessage(char *msg, int client)
 }
 
 
-/**
- * Report a found key back to the issuing client
- */
-void Kraken::reportFind(uint64_t result, Fragment *frag)
-{
-	unsigned char keyData[8];
-	char msg[256];
-
-	/* output to client */
-	sprintf(msg, "103 %i %016llX %i (found a table hit in table %i)\r\n", frag->getJobNum(), result, frag->getBitPos(), frag->getAdvance());
-	sendMessage(msg, frag->getClientId());
-
-	/* was this a Kc cracking command with reference bits? */
-	if(frag->getBitsRef() != NULL)
-	{
-		if(find_kc(result, frag->getBitPos(), frag->getCount(), frag->getCountRef(), frag->getBitsRef(), keyData))
-		{
-			/* Kc found, cleanup. reporting. */
-			char details[128];
-			char builder[128];
-
-			struct timeval tv;
-			gettimeofday(&tv, NULL);
-			unsigned long diff = 1000000 * (tv.tv_sec - mTimingMap[frag->getJobNum()].tv_sec);
-			diff += tv.tv_usec - mTimingMap[frag->getJobNum()].tv_usec;
-
-			snprintf(details,128,"search took %i sec",(int)(diff/1000000));
-			mFoundKc++;
-			sprintf(msg, "200 %i ", frag->getJobNum());
-			for(int pos = 0; pos < 8; pos++)
-			{
-				sprintf(builder, "%02X", keyData[pos]);
-				strcat(msg, builder);
-			}
-
-			strcat(msg," Key found (");
-			strcat(msg, details);
-			if(mJobParallel)
-			{
-				strcat(msg,", parallel mode enabled - please wait for 404");
-			}
-			else
-			{
-				clearFragments();
-			}
-			strcat(msg,")\r\n");
-
-			sendMessage(msg, frag->getClientId());
-
-			//cancelJobFragments(frag->getJobNum());
-
-			mFoundKeys++;
-			memcpy(mKeyResult, keyData, 8);
-		}
-	}
-
-	MEMCHECK();
-}
-
-
 class KrakenPerfDisk : NcqRequestor {
 
 private:
@@ -806,17 +705,17 @@ public:
 	{
 		sem_wait(&mMutex);
 		for (uint64_t req=0; req<requests; req++) {
-			for (int i=0; i<mDevices.size(); i++) {
+			for (int i=0; i<(int)mDevices.size(); i++) {
 				uint64_t blockNo = (uint64_t)((double)rand() / (RAND_MAX + 1) * (mDevices[i]->getMaxBlockNum()));
 
-				mDevices[i]->Request(this, blockNo);
+				mDevices[i]->Request(UINT64_MAX, this, blockNo);
 				mRequestsRunning++;
 			}
 		}
 		sem_post(&mMutex);
 	}
 
-	void KrakenPerfDisk::processBlock(const void* pDataBlock)
+	bool KrakenPerfDisk::processBlock(const void* pDataBlock)
 	{
 		sem_wait(&mMutex);
 		mRequestsRunning--;
@@ -826,6 +725,8 @@ public:
 			mKraken->sendMessage("216 Performance test finished. Retrieve results with 'stats'\r\n", mClient);
 		}
 		sem_post(&mMutex);
+
+		return true;
 	}
 };
 
@@ -876,7 +777,7 @@ void Kraken::serverCmd(int clientID, string cmd)
 
     if (strncmp(command,"test",4)==0)
 	{
-		size_t queued = kraken->mWorkOrders.size();
+		size_t queued = kraken->mJobs.size();
 
 		/* already processing one request? */
 		if(kraken->mBusy)
@@ -885,11 +786,11 @@ void Kraken::serverCmd(int clientID, string cmd)
 		}
 
         // Test frame 998
-        int id = kraken->Crack(clientID, "001101110011000000001000001100011000100110110110011011010011110001101010100100101111111010111100000110101001101011");
+        uint64_t id = kraken->Crack(clientID, "001101110011000000001000001100011000100110110110011011010011110001101010100100101111111010111100000110101001101011");
 
-		sprintf(msg, "101 %i Request queued (%i already in queue)\r\n", id, queued );
+		sprintf(msg, "101 %d Request queued (%d already in queue).\r\n", (int)id, (int)queued );
 	}    
-	else if (!strncmp(command,"list",4)) 
+	else if (!strncmp(command,"tables",6)) 
 	{
         /* Return a printed list of loaded tables */
         sprintf(msg,"219 %s",mInstance->mTableInfo.c_str());
@@ -925,7 +826,7 @@ void Kraken::serverCmd(int clientID, string cmd)
 	}
     else if (!strncmp(command,"status",6))
 	{
-		size_t queued = kraken->mWorkOrders.size();
+		size_t queued = kraken->mJobs.size();
 
 		/* already processing one request? */
 		if(kraken->mBusy)
@@ -933,11 +834,11 @@ void Kraken::serverCmd(int clientID, string cmd)
 			queued++;
 		}
 
-		sprintf(msg, "210 Kraken server (%i jobs in queue, %i processed, %i keys found, %i not found, tables currently %s)\r\n", queued, kraken->mRequests, kraken->mFoundKc, kraken->mFailedKc, (kraken->mTablesLoaded?"in RAM":"not loaded"));
+		sprintf(msg, "210 Kraken server (%i jobs in queue, %i processed, %i keys found, %i not found, tables currently %s)\r\n", (int)queued, kraken->mRequests, kraken->mFoundKc, kraken->mFailedKc, (kraken->mTablesLoaded?"in RAM":"not loaded"));
 	}
     else if (!strncmp(command,"stats",5))
 	{
-		int size = 512;
+		size_t size = 512;
 		char *buffer = (char*)malloc(size);
 		
 		strcpy(buffer, "214 ");
@@ -963,7 +864,7 @@ void Kraken::serverCmd(int clientID, string cmd)
         size_t len = strlen(ch);
         if (len>63)
 		{
-			size_t queued = kraken->mWorkOrders.size();
+			size_t queued = kraken->mJobs.size();
 
 			/* already processing one request? */
 			if(kraken->mBusy)
@@ -971,8 +872,8 @@ void Kraken::serverCmd(int clientID, string cmd)
 				queued++;
 			}
 
-            int id = kraken->Crack(clientID, ch);
-			sprintf(msg, "101 %i Request queued (%i already in queue)\r\n", id, queued  );
+            uint64_t id = kraken->Crack(clientID, ch);
+			sprintf(msg, "101 %d Request queued (%i already in queue).\r\n", (int)id, (int)queued );
         }
 		else
 		{
@@ -986,98 +887,105 @@ void Kraken::serverCmd(int clientID, string cmd)
     else if (!strncmp(command,"cancel",6))
 	{
 		const char *parm = command + 6;
-		int id = -1;
+		int job_id = -1;
 
 		if(strlen(parm) > 0)
 		{
-			sscanf(parm, "%i", &id);
+			sscanf(parm, "%i", &job_id);
 		}
 
-		if(id >= 0)
+		if(job_id >= 0)
 		{
-			if(!kraken->mJobParallel)
-			{
-				sprintf(msg, "212 Cancelling request #%i\r\n", id);
-				kraken->clearFragments();
-				//kraken->cancelJobFragments(id);
-			}
-			else
-			{
-				sprintf(msg, "400 Selective cancel not possible, running in parallel mode\r\n");
-			}
+			kraken->cancelJobFragments(job_id, "400 Your request was cancelled.\r\n");
+			sprintf(msg, "212 Cancelled job %i.\r\n", job_id);
 		}
 		else
 		{
-			sprintf(msg, "212 Cancelling current request (if any)\r\n");
-
-			kraken->clearFragments();
+			sprintf(msg, "400 You have to specify a job to cancel.\r\n");
 		}
     }
     else if (!strncmp(command,"fake",4))
 	{
+		sprintf(msg, "400 Not working in this version due to restructured job handling. May come again.\r\n");
+		/*
 		sprintf(msg, "213 Faking result of currently running request (if any) and will report key EEEE[...]EE\r\n");
 
 		memset(kraken->mKeyResult, 0xEE, 8);
 		kraken->mFoundKeys = 1;
         kraken->clearFragments();
+		*/
     }
     else if (!strncmp(command,"jobs",4))
-	{    
-		int size = 512;
-		char *buffer = (char*)malloc(size);
-		
+	{
 		sem_wait(&kraken->mMutex);
-		map<unsigned int,int>::iterator it = kraken->mJobMap.begin();
+		map<uint64_t,t_job>::iterator it = kraken->mJobs.begin();
 		sprintf(msg, "220 Active jobs:\r\n");
 		kraken->sendMessage(msg, clientID);
 
-		while (it!=kraken->mJobMap.end()) 
-		{
-			double progress = 100.0f - ((100.0f * kraken->mJobMap[(*it).first]) / kraken->mJobMapMax[(*it).first]);
-			struct timeval tv;
-			gettimeofday(&tv, NULL);
-			unsigned long diff = 1000000 * (tv.tv_sec - kraken->mTimingMap[(*it).first].tv_sec);
-			diff += tv.tv_usec - kraken->mTimingMap[(*it).first].tv_usec;
-
-			sprintf(msg, "220    %4d: active %i sec, progress %3.2f %%\r\n", (*it).first, (int)(diff/1000000), progress );
-			kraken->sendMessage(msg, clientID);
-			it++;
-		}
 		unsigned int histogram[4];
 		histogram[0] = 0;
 		histogram[1] = 0;
 		histogram[2] = 0;
 		histogram[3] = 0;
 		int total = 0;
-		map<Fragment*,int>::iterator it2 = kraken->mFragments.begin();
-		while (it2!=kraken->mFragments.end()) {
-			int state = (*it2).first->getState();
-			if ((state>=0)&&(state<4)) {
-				histogram[state]++;
-				total++;
+
+		while (it!=kraken->mJobs.end()) 
+		{
+			uint64_t job_id = (*it).first;
+			float progress = 100.0f - ((100.0f * kraken->mJobs[job_id].fragments.size()) / kraken->mJobs[job_id].max_fragments);
+			struct timeval tv;
+			gettimeofday(&tv, NULL);
+			unsigned long diff = 1000000 * (tv.tv_sec - kraken->mJobs[job_id].start_time.tv_sec);
+			diff += tv.tv_usec - kraken->mJobs[job_id].start_time.tv_usec;
+
+			sprintf(msg, "220    %4i: active %i sec, progress %3.2f %%\r\n", (int)(*it).first, (int)(diff/1000000), progress );
+			kraken->sendMessage(msg, clientID);
+
+			map<Fragment*,int>::iterator it2 = kraken->mJobs[job_id].fragments.begin();
+			while (it2!=kraken->mJobs[job_id].fragments.end()) {
+				int state = (*it2).first->getState();
+				if ((state>=0)&&(state<4)) {
+					histogram[state]++;
+					total++;
+				}
+				it2++;
 			}
-			it2++;
+
+			it++;
 		}
+
 		sem_post(&kraken->mMutex);
 
-		sprintf(msg, "220 State counts (%d): %d %d %d %d\r\n", total, histogram[0],histogram[1],histogram[2],histogram[3]);
-		free(buffer);
+		sprintf(msg, "220\r\n");
+		kraken->sendMessage(msg, clientID);
+		sprintf(msg, "220 Work units:  %6d\r\n", total);
+		kraken->sendMessage(msg, clientID);
+		sprintf(msg, "220       init:  %6d\r\n", histogram[0]);
+		kraken->sendMessage(msg, clientID);
+		sprintf(msg, "220        HDD:  %6d\r\n", histogram[1]);
+		kraken->sendMessage(msg, clientID);
+		sprintf(msg, "220        CPU:  %6d\r\n", histogram[2]);
+		kraken->sendMessage(msg, clientID);
+		sprintf(msg, "220        ATI:  %6d\r\n", histogram[3]);
+		kraken->sendMessage(msg, clientID);
+		
+		sprintf(msg, "220\r\n");
     }
     else if (!strncmp(command,"progress",8))
 	{		
 		const char *parm = command + 8;
-		int id = -1;
+		int job_id = -1;
 
 		if(strlen(parm) > 0)
 		{
-			sscanf(parm, "%i", &id);
+			sscanf(parm, "%i", &job_id);
 		}
 
-		if(id >= 0 && kraken->mJobMap.find(id) != kraken->mJobMap.end())
+		if(job_id >= 0 && kraken->mJobs.find(job_id) != kraken->mJobs.end())
 		{
-			double progress = 100.0f - ((100.0f * kraken->mJobMap[id]) / kraken->mJobMapMax[id]);
+			float progress = 100.0f - ((100.0f * kraken->mJobs[job_id].fragments.size()) / kraken->mJobs[job_id].max_fragments);
 
-			sprintf(msg, "221 Progress of job %i is %2.2f %%\r\n", id, progress );
+			sprintf(msg, "221 Progress of job %i is %2.2f %%\r\n", job_id, progress );
 		}
 		else
 		{

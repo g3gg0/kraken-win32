@@ -10,6 +10,9 @@
 #ifdef WIN32
 #include <windows.h>
 #endif
+#include <map>
+#include <queue>
+#include <deque>
 
 #define KB *(1024ULL)
 #define MB *(1024ULL KB)
@@ -28,8 +31,28 @@ public:
 
 private:
     friend class NcqDevice;
-    virtual void processBlock(const void* pDataBlock) = 0;
+    virtual bool processBlock(const void* pDataBlock) = 0;
 };
+
+typedef struct {
+    uint64_t            job_id;
+    class NcqRequestor* req;
+    uint64_t            blockno;
+} request_t;
+
+typedef struct {
+    uint64_t            job_id;
+    class NcqRequestor* req;
+    uint64_t            blockno;
+    int                 next_free;
+    void*               addr;
+	bool				cancelled;
+#ifdef WIN32
+	OVERLAPPED			overlapped;
+	char				buffer[4096];
+#endif
+} mapRequest_t;
+
 
 class NcqDevice {
 public:
@@ -40,26 +63,10 @@ public:
 	void SpinLock(bool state);
 	uint64_t getMaxBlockNum() { return mMaxBlockNum; }
 	char* GetDeviceStats();
-    void Request(class NcqRequestor*, uint64_t blockno);
-    void Cancel(class NcqRequestor*);
+	bool PopRequest(mapRequest_t* req);
+    void Request(uint64_t job_id, class NcqRequestor*, uint64_t blockno);
+    void Cancel(uint64_t job_id);
 	void Clear();
-
-    typedef struct {
-        class NcqRequestor* req;
-        uint64_t            blockno;
-    } request_t;
-
-    typedef struct {
-        class NcqRequestor* req;
-        uint64_t            blockno;
-        int                 next_free;
-        void*               addr;
-		bool				cancel;
-#ifdef WIN32
-		OVERLAPPED			overlapped;
-		char				buffer[4096];
-#endif
-    } mapRequest_t;
 
     static void* thread_stub(void* arg);
     void WorkerThread();
@@ -77,8 +84,9 @@ private:
 	uint64_t mMaxBlockNum;
     unsigned char mBuffer[4096];
     mapRequest_t mMappings[NCQ_REQUESTS];
-    queue< request_t > mRequests;
-    queue< request_t > mCancelledRequests;
+	
+	uint64_t mRequestCount;
+	map<uint64_t,deque<request_t>> mRequests;
     int mFreeMap;
     sem_t mMutex;
 	sem_t mSpinlock;

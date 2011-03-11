@@ -227,14 +227,14 @@ DeltaLookup::~DeltaLookup()
 	UnloadTable();
 }
 
-void DeltaLookup::Cancel(NcqRequestor* req)
+void DeltaLookup::Cancel(uint64_t job_id)
 {
-	mDevice->Cancel(req);
+	mDevice->Cancel(job_id);
 }
 
 #define DEBUG_PRINT 0
 
-uint64_t DeltaLookup::StartEndpointSearch(NcqRequestor* req, uint64_t end, uint64_t& blockstart)
+uint64_t DeltaLookup::StartEndpointSearch(uint64_t job_id, NcqRequestor* req, uint64_t end, uint64_t& blockstart)
 {
 	if(!mTableLoaded)
 	{
@@ -281,7 +281,7 @@ uint64_t DeltaLookup::StartEndpointSearch(NcqRequestor* req, uint64_t end, uint6
 #endif
 
     blockstart = here; /* set first in case of sync loading */
-    mDevice->Request(req, (uint64_t)bl+mBlockOffset );
+    mDevice->Request(job_id, req, (uint64_t)bl+mBlockOffset );
     return here;
 }
 

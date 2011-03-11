@@ -66,8 +66,7 @@ A5Slice::A5Slice(AtiA5* cont, int dev, int dp, int rounds, int pipe_mult) :
     assert((dev>=0)&&(dev<CalDevice::getNumDevices()));
     mDev = CalDevice::createDevice(dev);
     assert(mDev);
-    mNum = mDev->getDeviceAttribs()->wavefrontSize *
-        mDev->getDeviceAttribs()->numberOfSIMD * pipe_mult;
+    mNum = mDev->getDeviceAttribs()->wavefrontSize * mDev->getDeviceAttribs()->numberOfSIMD * pipe_mult;
 
     unsigned int dim = mNum;
     unsigned int dim32 = 32*mNum;
@@ -246,17 +245,17 @@ void A5Slice::Clear()
 
 }
 
-void A5Slice::Cancel(void *context) 
+void A5Slice::Cancel(uint64_t job_id) 
 {
-	int i = 0;
-
-    for( int j=0; j<32; j++) {
-        AtiA5::JobPiece_s* job = &mJobs[32*i+j];
-		if (!job->idle && job->context == context) {
+    for(int pos = 0; pos < mNum * 32; pos++)
+	{
+        AtiA5::JobPiece_s* job = &mJobs[pos];
+		if (!job->idle && (job->job_id == job_id))
+		{
 			/* Add to free list */
 			job->next_free = mFree;
 			job->idle = true;
-			mFree = 32*i+j;
+			mFree = pos;
 			mNumJobs--;
         }
     }

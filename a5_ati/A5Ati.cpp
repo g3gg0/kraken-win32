@@ -40,7 +40,7 @@ using namespace std;
  * Construct an instance of A5 Ati searcher
  * create tables and streams
  */
-AtiA5::AtiA5(int max_rounds, int condition, unsigned int gpu_mask, int pipeline_mul)
+AtiA5::AtiA5(int max_rounds, int condition, uint32_t gpu_mask, int pipeline_mul)
 {
 	printf ( " [x] A5Ati: Compiled for '"KRAKEN_VERSION"'\r\n");
 	mUsable = false;
@@ -48,6 +48,7 @@ AtiA5::AtiA5(int max_rounds, int condition, unsigned int gpu_mask, int pipeline_
     mMaxRound = max_rounds;
     mPipelineSize = 0;
     mPipelineMul = pipeline_mul;
+	mRequestCount = 0;
 
 	if(!Init())
 	{
@@ -102,36 +103,56 @@ void AtiA5::Shutdown()
 	}
 }
 
-int  AtiA5::Submit(uint64_t start_value, unsigned int start_round, uint32_t advance, void* context)
+int  AtiA5::Submit(uint64_t job_id, uint64_t start_value, uint32_t start_round, uint32_t advance, void* context)
 {
     if (start_round>=mMaxRound) return -1;
 
-    int size = 0;
     sem_wait(&mMutex);
-    mInputStart.push_back(start_value);
-    mInputRoundStart.push_back(start_round);
-    mInputRoundStop.push_back(mMaxRound);
-    mInputAdvance.push_back(advance);
-    mInputContext.push_back(context);
-    size = (int)mInputRoundStart.size();
+
+	int ret = 0;
+	t_a5_request req;
+
+	req.job_id = job_id;
+	req.start_value = start_value;
+	req.start_round = start_round;
+	req.end_round = mMaxRound;
+	req.advance = advance;
+	req.context = context;
+
+	mRequests[job_id].push_back(req);
+
+	mRequestCount++;
+	ret = (mRequestCount>INT_MAX)?(INT_MAX):((int)mRequestCount);
+
     sem_post(&mMutex);
-    return size;
+
+	return ret;
 }
 
-int  AtiA5::SubmitPartial(uint64_t start_value, unsigned int stop_round, uint32_t advance, void* context)
+int  AtiA5::SubmitPartial(uint64_t job_id, uint64_t start_value, uint32_t end_round, uint32_t advance, void* context)
 {
-    if (stop_round>mMaxRound) return -1;
+    if (end_round>mMaxRound) return -1;
 
-    int size = 0;
     sem_wait(&mMutex);
-    mInputStart.push_front(start_value);
-    mInputRoundStart.push_front(0);
-    mInputRoundStop.push_front(stop_round);
-    mInputAdvance.push_front(advance);
-    mInputContext.push_front(context);
-    size = (int)mInputRoundStart.size();
+
+	int ret = 0;
+	t_a5_request req;
+
+	req.job_id = job_id;
+	req.start_value = start_value;
+	req.start_round = 0;
+	req.end_round = end_round;
+	req.advance = advance;
+	req.context = context;
+
+	mRequests[job_id].push_front(req);
+
+	mRequestCount++;
+	ret = (mRequestCount>INT_MAX)?(INT_MAX):((int)mRequestCount);
+
     sem_post(&mMutex);
-    return size;
+
+	return ret;
 }
 
 bool AtiA5::IsIdle()
@@ -139,10 +160,9 @@ bool AtiA5::IsIdle()
 	bool idle = false;
 
 	sem_wait(&mMutex);
-	if ((int)mInputContext.size()< mParallelRequests)
-	{
-		idle = true;
-	}
+
+	idle = (mRequestCount < mParallelRequests);
+
 	sem_post(&mMutex);
 
 	return idle;
@@ -166,185 +186,142 @@ void AtiA5::SpinLock(bool state)
 	}
 }
 
-void AtiA5::Cancel(list<void*> ctxList)
+void AtiA5::Cancel(uint64_t job_id)
 {
 	sem_wait(&mMutex);
 
+	for( int i=0; i<mNumSlices ; i++ )
 	{
-		list<size_t> deleteList;
-		
-		/* go through all ctx to delete */
-		list<void*>::iterator itCtxList;
-		for( itCtxList = ctxList.begin(); itCtxList != ctxList.end(); ++itCtxList) 
-		{
-			/* build a list of positions where these entries are */
-			size_t pos = 0;
-			deque<void*>::iterator queued;
-			for( queued = mInputContext.begin(); queued != mInputContext.end(); ++queued ) 
-			{
-				void *a = (*itCtxList);
-				void *b = (*queued);
-
-				if(a == b)
-				{
-					deleteList.push_back(pos);
-					break;
-				}
-				pos++;
-			}
-		}
-
-		deleteList.sort();
-
-		size_t deleted = 0;
-		list<size_t>::iterator itDeleteList;
-		for( itDeleteList = deleteList.begin(); itDeleteList != deleteList.end(); ++itDeleteList ) 
-		{
-			/* if some entries were delete before, the position in the deque needs to be corrected */
-			size_t pos = (*itDeleteList) - deleted;
-
-			mInputStart.erase(mInputStart.begin() + pos);
-			mInputRoundStart.erase(mInputRoundStart.begin() + pos);
-			mInputRoundStop.erase(mInputRoundStop.begin() + pos);
-			mInputAdvance.erase(mInputAdvance.begin() + pos);
-			mInputContext.erase(mInputContext.begin() + pos);
-
-			deleted++;
-		}
+		mSlices[i]->Cancel(job_id);
 	}
 
-    /* Output queues */
+	if(mRequests.find(job_id) != mRequests.end())
 	{
-		list<size_t> deleteList;
-		
-		/* go through all ctx to delete */
-		list<void*>::iterator itCtxList;
-		for( itCtxList = ctxList.begin(); itCtxList != ctxList.end(); ++itCtxList) 
-		{
-			/* build a list of positions where these entries are */
-			size_t pos = 0;
-			deque<void*>::iterator queued;
-			for( queued = mOutputContext.begin(); queued != mOutputContext.end(); ++queued ) 
-			{
-				void *a = (*itCtxList);
-				void *b = (*queued);
-
-				if(a == b)
-				{
-					deleteList.push_back(pos);
-					break;
-				}
-				pos++;
-			}
-		}
-
-		deleteList.sort();
-
-		size_t deleted = 0;
-		list<size_t>::iterator itDeleteList;
-		for( itDeleteList = deleteList.begin(); itDeleteList != deleteList.end(); ++itDeleteList ) 
-		{
-			/* if some entries were delete before, the position in the deque needs to be corrected */
-			size_t pos = (*itDeleteList) - deleted;
-
-			mOutput.erase(mOutput.begin() + pos);
-			mOutputContext.erase(mOutputContext.begin() + pos);
-
-			deleted++;
-		}
+		mRequestCount -= mRequests[job_id].size(); 
+		mRequests[job_id].clear();
+		mRequests.erase(job_id);
 	}
 
+	if(mResults.find(job_id) != mResults.end())
+	{
+		mResults[job_id].clear();
+		mResults.erase(job_id);
+	}
+	
 	sem_post(&mMutex);
 }
 
 void AtiA5::Clear()
 {
-	/* clear jobs */
-	sem_wait(&mMutex);
-	mInputStart.clear();
-	mInputRoundStart.clear();
-	mInputRoundStop.clear();
-	mInputAdvance.clear();
-	mInputContext.clear();
-	while(mOutput.size() > 0)
-	{
-		mOutput.pop_front();
-		mOutputContext.pop_front();
-	}
-	sem_post(&mMutex);
-
-	/* wait until we are not calling the slices anymore */
-	while(!mIdle)
-	{
-		usleep(100);
-	}
-
-	/* now clear slices */
-	sem_wait(&mMutex);
-    for( int i=0; i<mNumSlices ; i++ ) {
-        mSlices[i]->Clear();
-    }
-	sem_post(&mMutex);
 }
   
-bool AtiA5::PopResult(uint64_t& start_value,
-			uint64_t& stop_value, void** context)
+bool AtiA5::PopResult(uint64_t& job_id, uint64_t& start_value, uint64_t& end_value, void** context)
 {
-    bool res = false;
     sem_wait(&mMutex);
-    if (mOutput.size()>0) {
-        res = true;
-        pair<uint64_t,uint64_t> res = mOutput.front();
-        mOutput.pop_front();
-        start_value = res.first;
-        stop_value = res.second;
-        void* ctx = mOutputContext.front();
-        mOutputContext.pop_front();
-        if (context) *context = ctx;
-    }
+
+	/* find any pending job */
+	map<uint64_t,deque<t_a5_result>>::iterator it = mResults.begin();
+
+	/* and return the first result available */
+	while(it != mResults.end())
+	{
+		if(it->second.size() > 0)
+		{
+			t_a5_result res = it->second.front();
+			it->second.pop_front();
+
+			job_id = res.job_id;
+			start_value = res.start_value;
+			end_value = res.end_value;
+			if(context)
+			{
+				*context = res.context;
+			}
+
+			sem_post(&mMutex);
+			return true;
+		}
+
+		it++;
+	}
+
     sem_post(&mMutex);
-    return res;
+	return false;
 }
 
 bool AtiA5::PopRequest(JobPiece_s* job)
 {
-    bool res = false;
-    sem_wait(&mMutex);
-    if (mInputStart.size()>0) {
-        res = true;
-        job->start_value = mInputStart.front();
-        mInputStart.pop_front();
-        job->start_round = mInputRoundStart.front();
-        mInputRoundStart.pop_front();
-        job->end_round = mInputRoundStop.front()-1;
-        mInputRoundStop.pop_front();
-        job->current_round = job->start_round;
-        job->context = mInputContext.front();
-        mInputContext.pop_front();
-        unsigned int advance = mInputAdvance.front();
-        mInputAdvance.pop_front();
+	sem_wait(&mMutex);
 
-        Advance* pAdv;
-        map<uint32_t,Advance*>::iterator it = mAdvanceMap.find(advance);
-        if (it==mAdvanceMap.end()) {
-            pAdv = new Advance(advance,mMaxRound);
-            mAdvanceMap[advance]=pAdv;
-        } else {
-            pAdv = (*it).second;
-        }
-        job->round_func = pAdv->getAdvances();
-        job->cycles = 0;
-        job->idle = false;
-    }
+	/* none available */
+	if(mRequestCount == 0)
+	{
+		sem_post(&mMutex);
+		return false;
+	}
+
+	/* find any pending job */
+	map<uint64_t,deque<t_a5_request>>::iterator it = mRequests.begin();
+
+	/* and queue the first request */
+	while(it != mRequests.end())
+	{
+		if(it->second.size() > 0)
+		{
+			t_a5_request req = it->second.front();
+			it->second.pop_front();
+
+			job->job_id = req.job_id;
+			job->start_value = req.start_value;
+			job->start_round = req.start_round;
+			job->end_round = req.end_round - 1;
+			job->current_round = req.start_round;
+			job->context = req.context;
+
+			unsigned int advance = req.advance;
+
+			Advance* pAdv;
+			map<uint32_t,Advance*>::iterator it = mAdvanceMap.find(advance);
+			if (it==mAdvanceMap.end()) {
+				pAdv = new Advance(advance,mMaxRound);
+				mAdvanceMap[advance]=pAdv;
+			} else {
+				pAdv = (*it).second;
+			}
+
+			job->round_func = pAdv->getAdvances();
+			job->cycles = 0;
+			job->idle = false;
+
+			mRequestCount--;
+
+			sem_post(&mMutex);
+
+			return true;
+		}
+		it++;
+	}
+
     sem_post(&mMutex);
-    return res;
+	return false;
 }
 
 void AtiA5::PushResult(JobPiece_s* job)
 {
+	t_a5_result res;
+
     sem_wait(&mMutex);
+
+	res.job_id = job->job_id;
+	res.start_value = job->start_value;
+	res.end_value = job->end_value;
+	res.context = job->context;
+
+	mResults[res.job_id].push_back(res);
+	/*
     mOutput.push_back( pair<uint64_t,uint64_t>(job->start_value,job->end_value) );
     mOutputContext.push_back(job->context);
+	*/
     sem_post(&mMutex);
 }
 
@@ -416,7 +393,7 @@ void AtiA5::Process(void)
 		{
 			mWaiting = false;
 			sem_wait(&mMutex);
-			int available = (int)mInputStart.size();
+			int available = (mRequestCount>INT_MAX)?(INT_MAX):((int)mRequestCount);
 			sem_post(&mMutex);
 
 			int total = available;
@@ -444,7 +421,6 @@ void AtiA5::Process(void)
 				mIdle = false;
 			}
 
-			MEMCHECK();
 			if (!mRunning) break;
 		}
     }
@@ -487,27 +463,27 @@ bool DLL_PUBLIC A5PipelineInfo(int &length)
     return false;
 }
 
-int  DLL_PUBLIC A5Submit(uint64_t start_value, unsigned int start_round, uint32_t advance, void* context)
+int  DLL_PUBLIC A5Submit(uint64_t job_id, uint64_t start_value, unsigned int start_round, uint32_t advance, void* context)
 {
     if (a5Instance) {
-        return a5Instance->Submit(start_value, start_round, advance, context);
+        return a5Instance->Submit(job_id, start_value, start_round, advance, context);
     }
     return -1; /* Error */
 }
 
-int  DLL_PUBLIC A5SubmitPartial(uint64_t start_value, unsigned int stop_round, uint32_t advance, void* context)
+int  DLL_PUBLIC A5SubmitPartial(uint64_t job_id, uint64_t start_value, unsigned int stop_round, uint32_t advance, void* context)
 {
     if (a5Instance) {
-        return a5Instance->SubmitPartial(start_value, stop_round, advance, context);
+        return a5Instance->SubmitPartial(job_id, start_value, stop_round, advance, context);
     }
     return -1; /* Error */
 }
 
 
-bool DLL_PUBLIC A5PopResult(uint64_t& start_value, uint64_t& stop_value, void** context)
+bool DLL_PUBLIC A5PopResult(uint64_t& job_id, uint64_t& start_value, uint64_t& stop_value, void** context)
 {
     if (a5Instance) {
-        return a5Instance->PopResult(start_value, stop_value, context);
+        return a5Instance->PopResult(job_id, start_value, stop_value, context);
     }
     return false; /* Nothing popped */ 
 }
@@ -529,10 +505,10 @@ void DLL_PUBLIC A5Clear()
 	}
 }
 
-void DLL_PUBLIC A5Cancel(list<void*> context)
+void DLL_PUBLIC A5Cancel(uint64_t job_id)
 {  
 	if (a5Instance) {
-		a5Instance->Cancel(context);
+		a5Instance->Cancel(job_id);
 	}
 }
 

@@ -14,12 +14,12 @@ public:
 
     void setBlockOffset(uint64_t bo) {mBlockOffset=bo;}
 
-    uint64_t StartEndpointSearch(NcqRequestor* req, uint64_t end, uint64_t& blockstart);
+    uint64_t StartEndpointSearch(uint64_t job_id, NcqRequestor* req, uint64_t end, uint64_t& blockstart);
 
     int CompleteEndpointSearch(const void* pDataBlock, uint64_t blockstart,
                                uint64_t endpoint, uint64_t& result);
 
-	void Cancel(NcqRequestor* req);
+	void Cancel(uint64_t job_id);
 	void LoadTable();
 	void UnloadTable();
 
