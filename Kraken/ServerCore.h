@@ -7,7 +7,8 @@
 #include <string>
 #include <pthread.h>
 #include <map>
-#include <semaphore.h>
+#include "Globals.h"
+
 #include <queue>
 
 using namespace std;
@@ -54,7 +55,7 @@ private:
     queue<string> mMessageQueue;
     queue<int> mClientQueue;
 
-    sem_t mQueueMutex;
-    sem_t mMutex;
+    t_mutex mQueueMutex;
+    t_mutex mMutex;
 };
 

@@ -10,7 +10,7 @@
 #include <windows.h>
 #endif
 
-#include "Globals.h"
+#include <Globals.h>
 
 extern "C" {
 #ifdef HAVE_ZLIB

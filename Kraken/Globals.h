@@ -14,14 +14,33 @@
 #define DL_EXT         ".dll"
 #define DIR_SEP        '\\'
 #define KRAKEN_VERSION "Kraken-win32 ($Revision$, g3gg0.de, win32)"
+
+typedef CRITICAL_SECTION t_mutex;
+
+/* assuming the inital value of the semaphore is 1 */
+#define mutex_init(mutex)               InitializeCriticalSection(mutex)
+#define mutex_destroy(mutex)            DeleteCriticalSection(mutex)
+#define mutex_unlock(mutex)             LeaveCriticalSection(mutex)
+#define mutex_lock(mutex)               EnterCriticalSection(mutex)
+
 #else
 #include <dlfcn.h>
+#include <pthread.h>
+
 #define DL_OPEN(x)     dlopen (x,RTLD_LAZY | RTLD_GLOBAL)
 #define DL_CLOSE       dlclose
 #define DL_SYM         dlsym
 #define DL_EXT         ".so"
 #define DIR_SEP        '/'
 #define KRAKEN_VERSION "Kraken-win32 ($Revision$, g3gg0.de, linux)"
+
+typedef pthread_mutex_t t_mutex;
+
+#define mutex_init(mutex)               do {pthread_mutexattr_t mutexattr; pthread_mutexattr_settype(&mutexattr, PTHREAD_MUTEX_RECURSIVE_NP); pthread_mutex_init(mutex, &mutexattr); } while (0)
+#define mutex_destroy(mutex)            pthread_mutex_destroy(mutex)
+#define mutex_unlock(mutex)             pthread_mutex_unlock(mutex)
+#define mutex_lock(mutex)               pthread_mutex_lock(mutex)
+
 #endif
 
 

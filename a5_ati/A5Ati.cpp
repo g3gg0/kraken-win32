@@ -24,7 +24,7 @@
 #include <assert.h>
 #include <stdlib.h>
 #include <unistd.h>
-#include <semaphore.h>
+
 #include <pthread.h>
 #ifndef WIN32
 #include <sys/wait.h>
@@ -34,7 +34,7 @@ using namespace std;
 #include <deque>
 #include <list>
 
-#include "Globals.h"
+#include <Globals.h>
 
 /**
  * Construct an instance of A5 Ati searcher
@@ -67,7 +67,7 @@ AtiA5::AtiA5(int max_rounds, int condition, uint32_t gpu_mask, int pipeline_mul)
 	mIdle = true;
 
     /* Init semaphore */
-    sem_init( &mMutex, 0, 1 );
+    mutex_init( &mMutex );
 
     /* Start worker thread */
     pthread_create(&mThread, NULL, thread_stub, (void*)this);
@@ -99,7 +99,7 @@ void AtiA5::Shutdown()
 		mRunning = false;
 		pthread_join(mThread, NULL);
 	    
-		sem_destroy(&mMutex);
+		mutex_destroy(&mMutex);
 	}
 }
 
@@ -107,7 +107,7 @@ int  AtiA5::Submit(uint64_t job_id, uint64_t start_value, uint32_t start_round, 
 {
     if (start_round>=mMaxRound) return -1;
 
-    sem_wait(&mMutex);
+    mutex_lock(&mMutex);
 
 	int ret = 0;
 	t_a5_request req;
@@ -124,7 +124,7 @@ int  AtiA5::Submit(uint64_t job_id, uint64_t start_value, uint32_t start_round, 
 	mRequestCount++;
 	ret = (mRequestCount>INT_MAX)?(INT_MAX):((int)mRequestCount);
 
-    sem_post(&mMutex);
+    mutex_unlock(&mMutex);
 
 	return ret;
 }
@@ -133,7 +133,7 @@ int  AtiA5::SubmitPartial(uint64_t job_id, uint64_t start_value, uint32_t end_ro
 {
     if (end_round>mMaxRound) return -1;
 
-    sem_wait(&mMutex);
+    mutex_lock(&mMutex);
 
 	int ret = 0;
 	t_a5_request req;
@@ -150,7 +150,7 @@ int  AtiA5::SubmitPartial(uint64_t job_id, uint64_t start_value, uint32_t end_ro
 	mRequestCount++;
 	ret = (mRequestCount>INT_MAX)?(INT_MAX):((int)mRequestCount);
 
-    sem_post(&mMutex);
+    mutex_unlock(&mMutex);
 
 	return ret;
 }
@@ -159,11 +159,11 @@ bool AtiA5::IsIdle()
 {
 	bool idle = false;
 
-	sem_wait(&mMutex);
+	mutex_lock(&mMutex);
 
 	idle = (mRequestCount < mParallelRequests);
 
-	sem_post(&mMutex);
+	mutex_unlock(&mMutex);
 
 	return idle;
 }
@@ -188,7 +188,7 @@ void AtiA5::SpinLock(bool state)
 
 void AtiA5::Cancel(uint64_t job_id)
 {
-	sem_wait(&mMutex);
+	mutex_lock(&mMutex);
 
 	for( int i=0; i<mNumSlices ; i++ )
 	{
@@ -208,7 +208,7 @@ void AtiA5::Cancel(uint64_t job_id)
 		mResults.erase(job_id);
 	}
 	
-	sem_post(&mMutex);
+	mutex_unlock(&mMutex);
 }
 
 void AtiA5::Clear()
@@ -217,10 +217,10 @@ void AtiA5::Clear()
   
 bool AtiA5::PopResult(uint64_t& job_id, uint64_t& start_value, uint64_t& end_value, void** context)
 {
-    sem_wait(&mMutex);
+    mutex_lock(&mMutex);
 
 	/* find any pending job */
-	map<uint64_t,deque<t_a5_result>>::iterator it = mResults.begin();
+	map<uint64_t, deque<t_a5_result> >::iterator it = mResults.begin();
 
 	/* and return the first result available */
 	while(it != mResults.end())
@@ -238,30 +238,30 @@ bool AtiA5::PopResult(uint64_t& job_id, uint64_t& start_value, uint64_t& end_val
 				*context = res.context;
 			}
 
-			sem_post(&mMutex);
+			mutex_unlock(&mMutex);
 			return true;
 		}
 
 		it++;
 	}
 
-    sem_post(&mMutex);
+    mutex_unlock(&mMutex);
 	return false;
 }
 
 bool AtiA5::PopRequest(JobPiece_s* job)
 {
-	sem_wait(&mMutex);
+	mutex_lock(&mMutex);
 
 	/* none available */
 	if(mRequestCount == 0)
 	{
-		sem_post(&mMutex);
+		mutex_unlock(&mMutex);
 		return false;
 	}
 
 	/* find any pending job */
-	map<uint64_t,deque<t_a5_request>>::iterator it = mRequests.begin();
+	map<uint64_t, deque<t_a5_request> >::iterator it = mRequests.begin();
 
 	/* and queue the first request */
 	while(it != mRequests.end())
@@ -295,14 +295,14 @@ bool AtiA5::PopRequest(JobPiece_s* job)
 
 			mRequestCount--;
 
-			sem_post(&mMutex);
+			mutex_unlock(&mMutex);
 
 			return true;
 		}
 		it++;
 	}
 
-    sem_post(&mMutex);
+    mutex_unlock(&mMutex);
 	return false;
 }
 
@@ -310,7 +310,7 @@ void AtiA5::PushResult(JobPiece_s* job)
 {
 	t_a5_result res;
 
-    sem_wait(&mMutex);
+    mutex_lock(&mMutex);
 
 	res.job_id = job->job_id;
 	res.start_value = job->start_value;
@@ -322,7 +322,7 @@ void AtiA5::PushResult(JobPiece_s* job)
     mOutput.push_back( pair<uint64_t,uint64_t>(job->start_value,job->end_value) );
     mOutputContext.push_back(job->context);
 	*/
-    sem_post(&mMutex);
+    mutex_unlock(&mMutex);
 }
 
 bool AtiA5::PipelineInfo(int &length)
@@ -392,9 +392,9 @@ void AtiA5::Process(void)
 		else
 		{
 			mWaiting = false;
-			sem_wait(&mMutex);
+			mutex_lock(&mMutex);
 			int available = (mRequestCount>INT_MAX)?(INT_MAX):((int)mRequestCount);
-			sem_post(&mMutex);
+			mutex_unlock(&mMutex);
 
 			int total = available;
 			for( int i=0; i<mNumSlices ; i++ ) {

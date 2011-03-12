@@ -26,7 +26,7 @@
 
 #include "kernelLib.h"
 
-#include "Globals.h"
+#include <Globals.h>
 
 #define DISASSEMBLE 0
 

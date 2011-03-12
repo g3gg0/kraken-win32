@@ -18,7 +18,7 @@
 
 #define MAX_CLIENTS 25
 
-#include "Globals.h"
+#include <Globals.h>
 
 
 ServerCore::ServerCore(int port,dispatch cb) :
@@ -73,8 +73,8 @@ ServerCore::ServerCore(int port,dispatch cb) :
     mRunning = true;
 
     /* Init semaphore */
-    sem_init( &mMutex, 0, 1 );
-    sem_init( &mQueueMutex, 0, 1 );
+    mutex_init( &mMutex );
+    mutex_init( &mQueueMutex );
 
     pthread_create(&mThread, NULL, thread_stub, (void*)this);
 }
@@ -101,8 +101,8 @@ void ServerCore::Shutdown()
 		if(mListener!=-1) {
 			close(mListener);
 		}
-		sem_destroy(&mMutex);
-		sem_destroy(&mQueueMutex);
+		mutex_destroy(&mMutex);
+		mutex_destroy(&mQueueMutex);
 	}
 }
 
@@ -119,7 +119,7 @@ void* ServerCore::thread_stub(void* arg)
 
 void ServerCore::ProcessMessageQueue()
 {
-	sem_wait(&mQueueMutex);
+	mutex_lock(&mQueueMutex);
 
     while (mMessageQueue.size()>0) 
 	{
@@ -135,7 +135,7 @@ void ServerCore::ProcessMessageQueue()
 		}
 	}
 
-    sem_post(&mQueueMutex);
+    mutex_unlock(&mQueueMutex);
 }
 
 
@@ -151,7 +151,7 @@ void ServerCore::Serve()
         FD_ZERO(&sockets);
         FD_SET(mListener, &sockets);
         max_desc = mListener;
-        sem_wait(&mMutex);
+        mutex_lock(&mMutex);
 
 		ProcessMessageQueue();
 
@@ -165,7 +165,7 @@ void ServerCore::Serve()
             }
             it++;
         }
-        sem_post(&mMutex);
+        mutex_unlock(&mMutex);
 
 		timeout.tv_sec = 0;
 		timeout.tv_usec = 100000;
@@ -188,7 +188,7 @@ void ServerCore::Serve()
                 }
             }
 
-            sem_wait(&mMutex);
+            mutex_lock(&mMutex);
             it = mClientMap.begin();
             while(it != mClientMap.end())
             {
@@ -213,7 +213,7 @@ void ServerCore::Serve()
                 }
                 it++;
             }
-            sem_post(&mMutex);
+            mutex_unlock(&mMutex);
         } 
     }
 }
@@ -221,21 +221,21 @@ void ServerCore::Serve()
 
 void ServerCore::Write(int clientId, string data)
 {
-    sem_wait(&mQueueMutex);
+    mutex_lock(&mQueueMutex);
     mMessageQueue.push(data);
     mClientQueue.push(clientId);
-    sem_post(&mQueueMutex);
+    mutex_unlock(&mQueueMutex);
 }
 
 void ServerCore::Broadcast(string data)
 {
-    sem_wait(&mMutex);
+    mutex_lock(&mMutex);
     map<unsigned int, ClientConnection*>::iterator it = mClientMap.begin();
     while(it != mClientMap.end()) {
         (*it).second->Write(data);
         it++;
     }
-    sem_post(&mMutex);
+    mutex_unlock(&mMutex);
 }
 
 

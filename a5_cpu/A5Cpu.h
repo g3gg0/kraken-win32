@@ -45,11 +45,12 @@
 #endif
 
 
-#include <semaphore.h>
+
 #include <unistd.h>
 #include <pthread.h>
 #include <stdint.h>
 #include "Advance.h"
+#include "Globals.h"
 #include <map>
 #include <queue>
 #include <deque>
@@ -105,7 +106,7 @@ private:
   unsigned int mMaxRound;
 
   bool mIsUsingTables;
-  ushort mClockMask[16*16*16];
+  uint16_t mClockMask[16*16*16];
   unsigned char mTable6bit[1024];
   unsigned char mTable5bit[512];
   unsigned char mTable4bit[256];
@@ -115,10 +116,10 @@ private:
   int mWaiting;
 
   /* Mutex semaphore to protect the queues */
-  sem_t mMutex;
+  t_mutex mMutex;
   uint64_t mRequestCount;
-  map<uint64_t,deque<t_a5_request>> mRequests;
-  map<uint64_t,deque<t_a5_result>> mResults;
+  map<uint64_t, deque<t_a5_request> > mRequests;
+  map<uint64_t, deque<t_a5_result> > mResults;
 
   map< uint32_t, class Advance* > mAdvances;
 };

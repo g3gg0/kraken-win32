@@ -9,12 +9,13 @@
 #ifdef WIN32
 #include <compat-win32.h>
 #else
+#include <errno.h>
 #include <sys/mman.h>
 #endif
 #include <stdio.h>
 #include <string.h>
 
-#include "Globals.h"
+#include <Globals.h>
 
 
 NcqDevice::NcqDevice(const char* pzDevNode)
@@ -112,8 +113,8 @@ NcqDevice::NcqDevice(const char* pzDevNode)
     mFreeMap = 31;
 
     /* Init semaphore */
-    sem_init( &mMutex, 0, 1 );
-    sem_init( &mSpinlock, 0, 1 );
+    mutex_init( &mMutex );
+    mutex_init( &mSpinlock );
 
     /* Start worker thread */
 	mBlocksRead = 0;
@@ -140,7 +141,7 @@ NcqDevice::~NcqDevice()
 #else
     close(mDevice);
 #endif
-    sem_destroy(&mMutex);
+    mutex_destroy(&mMutex);
 }
 
 void* NcqDevice::thread_stub(void* arg)
@@ -160,20 +161,20 @@ void NcqDevice::Request(uint64_t job_id, class NcqRequestor* req, uint64_t block
     assert(r==4096);
     req->processBlock(mBuffer);
 #else
-    sem_wait(&mMutex);
+    mutex_lock(&mMutex);
     request_t qr;
 	qr.job_id = job_id;
     qr.req = req;
     qr.blockno = blockno;
     mRequests[job_id].push_back(qr);
 	mRequestCount++;
-    sem_post(&mMutex);
+    mutex_unlock(&mMutex);
 #endif
 }
 
 void NcqDevice::Cancel(uint64_t job_id)
 {
-	sem_wait(&mMutex);
+	mutex_lock(&mMutex);
 
 	/* remove all requests for this job id */
 	if(mRequests.find(job_id) != mRequests.end())
@@ -192,7 +193,7 @@ void NcqDevice::Cancel(uint64_t job_id)
 		}
 	}
 
-	sem_post(&mMutex);
+	mutex_unlock(&mMutex);
 }
 
 void NcqDevice::SpinLock(bool state)
@@ -222,17 +223,14 @@ char* NcqDevice::GetDeviceStats()
 
 bool NcqDevice::PopRequest(mapRequest_t* job)
 {
-	sem_wait(&mMutex);
-
 	/* none available */
 	if(mRequestCount == 0)
 	{
-		sem_post(&mMutex);
 		return false;
 	}
 
 	/* find any pending job */
-	map<uint64_t,deque<request_t>>::iterator it = mRequests.begin();
+	map<uint64_t, deque<request_t> >::iterator it = mRequests.begin();
 
 	/* and queue the first request */
 	while(it != mRequests.end())
@@ -248,19 +246,19 @@ bool NcqDevice::PopRequest(mapRequest_t* job)
 			job->req = req.req;
             job->blockno = req.blockno;
 			job->cancelled = false;
+#ifdef WIN32
+			job->addr = job->buffer;
 			job->overlapped.Offset = offset & 0xFFFFFFFF;
 			job->overlapped.OffsetHigh = (offset >> 32);
+#endif
 
 			mRequestCount--;
-
-			sem_post(&mMutex);
 
 			return true;
 		}
 		it++;
 	}
 
-    sem_post(&mMutex);
 	return false;
 }
 
@@ -283,7 +281,7 @@ void NcqDevice::WorkerThread()
 		}
 		mWaiting = false;
 
-        sem_wait(&mMutex);
+        mutex_lock(&mMutex);
 
         /* schedule requests */
         while ((mFreeMap>=0)&&(mRequestCount>0))
@@ -313,7 +311,7 @@ void NcqDevice::WorkerThread()
 			}
 #else
 			/* map the block into memory */
-            mMappings[free].addr = mmap64(NULL, 4096, PROT_READ, MAP_PRIVATE|MAP_FILE, mDevice, qr.blockno*4096);
+            mMappings[free].addr = mmap64(NULL, 4096, PROT_READ, MAP_PRIVATE|MAP_FILE, mDevice, mMappings[free].blockno*4096);
 
 			/* any problems? */
 			if(mMappings[free].addr == MAP_FAILED)
@@ -329,7 +327,7 @@ void NcqDevice::WorkerThread()
 #endif
 			if(failed)
 			{
-		        sem_post(&mMutex);
+		        mutex_unlock(&mMutex);
 				mRunning = false;
 				printf (" [E] ReadFile on device '%s' failed with code %i.\r\n", mDeviceName, errorcode);
 				printf (" [E] Aborting reader thread. No further processing possible.\r\n");
@@ -337,7 +335,7 @@ void NcqDevice::WorkerThread()
 			}
         }
 
-        sem_post(&mMutex);
+        mutex_unlock(&mMutex);
 
         /* Check requests */
         for (int i=0; i<NCQ_REQUESTS; i++) 
@@ -372,12 +370,12 @@ void NcqDevice::WorkerThread()
                     madvise(mMappings[i].addr, 4096, MADV_WILLNEED);
 				}
 #endif
-                if (ret == TRUE && bytesRead == 4096) 
+                if (finished) 
 				{
 					mBlocksRead++;
 					if(!mMappings[i].cancelled)
 					{
-						mMappings[i].req->processBlock(mMappings[i].buffer);
+						mMappings[i].req->processBlock(mMappings[i].addr);
 					}
                     mMappings[i].req = NULL;
                     mMappings[i].cancelled = false;

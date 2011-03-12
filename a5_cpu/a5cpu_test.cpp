@@ -35,7 +35,7 @@ int main(int argc, char* argv[])
     uint64_t ctr = 0;
     for (int i=0; i < 1 ; i++ ) {
         // A5CpuSubmit(0xde001bc0006f0000ULL+ctr,0,100,NULL);
-        A5CpuSubmit(0x0123456789abcdefULL,i,100,NULL);
+        A5CpuSubmit(0,0x0123456789abcdefULL,i,100,NULL);
         ctr = ctr + 0x8000;
     }
     int ncount=1;
@@ -44,7 +44,8 @@ int main(int argc, char* argv[])
         bool found = true;
         int found_now = 0;
         while (found) {
-            found = A5CpuPopResult(rstart,rfinish,start_round,NULL);
+			uint64_t job;
+            found = A5CpuPopResult(job,rstart,rfinish,start_round,NULL);
             if (found) {
                 printf("CPU Result: %016llx %016llx (%i)\n", rstart, rfinish, start_round);
                 ncount--;

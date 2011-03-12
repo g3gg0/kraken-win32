@@ -2,7 +2,7 @@
 #include "A5AtiStubs.h"
 
 #include <stdio.h>
-#include "Globals.h"
+#include <Globals.h>
 
 
 
@@ -57,7 +57,7 @@ static void LoadDLL(void)
 #ifndef WIN32
     char* lError = dlerror();
     if (lError) {
-        fprintf(stderr, "Error when opening A5Ati"DL_EXT": %s\n", lError);
+		fprintf(stderr, "No A5Ati"DL_EXT" found. Will not use an ATI graphics card.\n");
         return;
     }
 #else

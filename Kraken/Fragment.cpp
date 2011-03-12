@@ -7,7 +7,7 @@
 #include "../a5_cpu/A5CpuStubs.h"
 #include "../a5_ati/A5AtiStubs.h"
 
-#include "Globals.h"
+#include <Globals.h>
 
 static uint64_t kr02_whitening(uint64_t key)
 {

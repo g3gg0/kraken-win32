@@ -3,7 +3,7 @@
 
 #include <stdio.h>
 
-#include "Globals.h"
+#include <Globals.h>
 
 #include <stdio.h>
 #include <stdlib.h>

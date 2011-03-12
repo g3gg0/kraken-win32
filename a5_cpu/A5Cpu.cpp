@@ -19,9 +19,11 @@
 #include "A5Cpu.h"
 
 #include <stdio.h>
+#include <stdint.h>
+#include <limits.h>
 #include <sys/time.h>
 
-#include "Globals.h"
+#include <Globals.h>
 
 using namespace std;
 #include <deque>
@@ -42,7 +44,7 @@ A5Cpu::A5Cpu(int max_rounds, int condition, int threads)
   CalcTables();
 
   /* Init semaphore */
-  sem_init( &mMutex, 0, 1 );
+  mutex_init( &mMutex );
 
   /* Start worker thread */
   mRunning = true;
@@ -85,7 +87,7 @@ void A5Cpu::Shutdown()
 
 		delete [] mThreads;
 
-		sem_destroy(&mMutex);
+		mutex_destroy(&mMutex);
 	}
 }
 
@@ -96,7 +98,7 @@ int  A5Cpu::Submit(uint64_t job_id, uint64_t start_value, uint64_t target,
     if (start_round>=mMaxRound) return -1;
 	if (stop_round<0) stop_round = mMaxRound;
 
-    sem_wait(&mMutex);
+    mutex_lock(&mMutex);
 
 	int ret = 0;
 	t_a5_request req;
@@ -121,7 +123,7 @@ int  A5Cpu::Submit(uint64_t job_id, uint64_t start_value, uint64_t target,
 	mRequestCount++;
 	ret = (mRequestCount>INT_MAX)?(INT_MAX):((int)mRequestCount);
 
-    sem_post(&mMutex);
+    mutex_unlock(&mMutex);
 
 	return ret;
 
@@ -131,7 +133,7 @@ int  A5Cpu::Submit(uint64_t job_id, uint64_t start_value, uint64_t target,
   if (stop_round<0) stop_round = mMaxRound;
 
   int size = 0;
-  sem_wait(&mMutex);
+  mutex_lock(&mMutex);
   if (target) {
       /* Keysearches are given priority */
       mInputStart.push_front(start_value);
@@ -149,7 +151,7 @@ int  A5Cpu::Submit(uint64_t job_id, uint64_t start_value, uint64_t target,
       mInputContext.push_back(context);
   }
   size = mInputRound.size();
-  sem_post(&mMutex);
+  mutex_unlock(&mMutex);
   return size;
 #endif
 }  
@@ -158,19 +160,19 @@ bool A5Cpu::IsIdle()
 {
 	bool idle = false;
 
-	sem_wait(&mMutex);
+	mutex_lock(&mMutex);
 	if (mRequestCount < mNumThreads)
 	{
 		idle = true;
 	}
-	sem_post(&mMutex);
+	mutex_unlock(&mMutex);
 
 	return idle;
 }
   
 void A5Cpu::Clear()
 {
-	sem_wait(&mMutex);
+	mutex_lock(&mMutex);
 /*
 	mInputStart.clear();
 	mInputTarget.clear();
@@ -183,7 +185,7 @@ void A5Cpu::Clear()
 	mOutputStartRound.clear();
 	mOutputContext.clear();
 */
-	sem_post(&mMutex);
+	mutex_unlock(&mMutex);
 }
   
 void A5Cpu::SpinLock(bool state)
@@ -206,7 +208,7 @@ void A5Cpu::SpinLock(bool state)
 
 void A5Cpu::Cancel(uint64_t job_id)
 {
-	sem_wait(&mMutex);
+	mutex_lock(&mMutex);
 
 	if(mRequests.find(job_id) != mRequests.end())
 	{
@@ -221,16 +223,16 @@ void A5Cpu::Cancel(uint64_t job_id)
 		mResults.erase(job_id);
 	}
 	
-	sem_post(&mMutex);
+	mutex_unlock(&mMutex);
 }
   
 bool A5Cpu::PopResult(uint64_t& job_id, uint64_t& start_value, uint64_t& stop_value,
                       int32_t& start_round, void** context)
 {
-    sem_wait(&mMutex);
+    mutex_lock(&mMutex);
 
 	/* find any pending job */
-	map<uint64_t,deque<t_a5_result>>::iterator it = mResults.begin();
+	map<uint64_t, deque<t_a5_result> >::iterator it = mResults.begin();
 
 	/* and return the first result available */
 	while(it != mResults.end())
@@ -249,14 +251,14 @@ bool A5Cpu::PopResult(uint64_t& job_id, uint64_t& start_value, uint64_t& stop_va
 				*context = res.context;
 			}
 
-			sem_post(&mMutex);
+			mutex_unlock(&mMutex);
 			return true;
 		}
 
 		it++;
 	}
 
-    sem_post(&mMutex);
+    mutex_unlock(&mMutex);
 	return false;
 }
 
@@ -281,23 +283,23 @@ void A5Cpu::Process(void)
 
 	if(mWait)
 	{
-		sem_wait(&mMutex);
+		mutex_lock(&mMutex);
 		mWaiting++;
-	    sem_post(&mMutex);
+	    mutex_unlock(&mMutex);
 		while(mWait)
 		{
 			usleep(0);
 		}
-		sem_wait(&mMutex);
+		mutex_lock(&mMutex);
 		mWaiting--;
-	    sem_post(&mMutex);
+	    mutex_unlock(&mMutex);
 	}
 
     /* Get input */
-    sem_wait(&mMutex);
+    mutex_lock(&mMutex);
 
 	/* find any pending job */
-	map<uint64_t,deque<t_a5_request>>::iterator it = mRequests.begin();
+	map<uint64_t, deque<t_a5_request> >::iterator it = mRequests.begin();
 
 	/* and queue the first request */
 	while(!active && it != mRequests.end())
@@ -333,7 +335,7 @@ void A5Cpu::Process(void)
 		it++;
 	}
 
-    sem_post(&mMutex);
+    mutex_unlock(&mMutex);
 
     if (!active) {
       /* Don't use CPU while idle */
@@ -473,9 +475,9 @@ void A5Cpu::Process(void)
 	active = false;
 
     /* Report completed chains */
-    sem_wait(&mMutex);
+    mutex_lock(&mMutex);
 	mResults[job_id].push_back(result);
-    sem_post(&mMutex);
+    mutex_unlock(&mMutex);
   }
 }
 

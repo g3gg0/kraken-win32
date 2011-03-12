@@ -3,12 +3,12 @@
 
 #include "windows.h"
 
-typedef CRITICAL_SECTION sem_t;
+typedef CRITICAL_SECTION t_mutex;
 
 /* assuming the inital value of the semaphore is 1 */
-#define sem_init(sem,pshared,value) InitializeCriticalSection(sem)
-#define sem_destroy(sem) DeleteCriticalSection(sem)
-#define sem_post(sem) LeaveCriticalSection(sem)
-#define sem_wait(sem) EnterCriticalSection(sem)
+#define mutex_init(sem,pshared,value) InitializeCriticalSection(sem)
+#define mutex_destroy(sem)            DeleteCriticalSection(sem)
+#define mutex_unlock(sem)             LeaveCriticalSection(sem)
+#define mutex_lock(sem)               EnterCriticalSection(sem)
 
 #endif

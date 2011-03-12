@@ -1,17 +1,19 @@
 
 #include "Kraken.h"
-
 #include "Fragment.h"
+
+#include <string.h>
 #include <stdio.h>
-#include <string>
 #include <assert.h>
 #include <string.h>
 #include <stdlib.h>
+#include <stdint.h>
+#include <limits.h>
 
 #include "../a5_cpu/A5CpuStubs.h"
 #include "../a5_ati/A5AtiStubs.h"
 
-#include "Globals.h"
+#include <Globals.h>
 
 
 /* g3gg0: hardcore-link to find_kc. someone should clean this up. */
@@ -135,13 +137,12 @@ Kraken::Kraken(const char* config, int server_port) :
 	printf("\r\n");
 
     /* Init semaphore */
-    sem_init( &mMutex, 0, 1 );
-    sem_init( &mWasteMutex, 0, 1 );
-	sem_init( &mConsoleMutex, 0, 1 );
+    mutex_init( &mMutex );
+    mutex_init( &mWasteMutex );
+	mutex_init( &mConsoleMutex );
 
     A5CpuInit(8, 12, 4);
     mUsingAti = A5AtiInit(8,12,0xffffffff,1);
-
 
 	gettimeofday(&mLastJobTime, NULL);
 	mBusy = false;
@@ -214,7 +215,7 @@ void Kraken::Shutdown()
 			delete mDevices[i];
 		}
 
-		sem_destroy(&mMutex);
+		mutex_destroy(&mMutex);
 	}
 }
 
@@ -233,7 +234,7 @@ uint64_t Kraken::Crack(int client, const char* plaintext)
 	gettimeofday(&job.start_time, NULL);
 
 	/* lock and submit */
-    sem_wait(&mMutex);
+    mutex_lock(&mMutex);
 
 	job.job_id = mRequestId;
 	mJobs[job.job_id] = job;
@@ -241,7 +242,7 @@ uint64_t Kraken::Crack(int client, const char* plaintext)
 	mRequests++;
 	mRequestId++;
 
-    sem_post(&mMutex);
+    mutex_unlock(&mMutex);
 
 	return job.job_id;
 }
@@ -256,7 +257,7 @@ bool Kraken::Tick()
     Fragment* frag;
     int32_t start_rnd;
 
-    sem_wait(&mMutex);
+    mutex_lock(&mMutex);
 
 	{	
 		/* we dont need the job id */
@@ -448,7 +449,7 @@ bool Kraken::Tick()
 			/* no tables active for this job */
 			if(!submitted)
 			{
-				cancelJobFragments(jobId, "400 No tables match your criteria.\r\n");
+				cancelJobFragments(jobId, (char*)"400 No tables match your criteria.\r\n");
 			}
 
 			free(plaintext);
@@ -460,7 +461,7 @@ bool Kraken::Tick()
 	}
 
 	/* free the fragments that are queued for deletion */
-    sem_wait(&mWasteMutex);
+    mutex_lock(&mWasteMutex);
 
 	map<Fragment*,int>::iterator fi = mWastedFragments.begin();
 	while(fi != mWastedFragments.end())
@@ -470,8 +471,8 @@ bool Kraken::Tick()
 	}
 	mWastedFragments.clear();
 
-    sem_post(&mWasteMutex);
-    sem_post(&mMutex);
+    mutex_unlock(&mWasteMutex);
+    mutex_unlock(&mMutex);
 
     return mBusy;
 }
@@ -513,9 +514,9 @@ void Kraken::queueFragmentRemoval(Fragment *frag, bool table_hit, uint64_t resul
 	/* no hit or no key found, only remove this fragment */
 	if(!deleted)
 	{
-		sem_wait(&mWasteMutex);
+		mutex_lock(&mWasteMutex);
 		mWastedFragments[frag] = frag->getJobNum();
-		sem_post(&mWasteMutex);
+		mutex_unlock(&mWasteMutex);
 	}
 
 	MEMCHECK();
@@ -563,7 +564,7 @@ void Kraken::sendJobResult(uint64_t job_id)
  */
 void Kraken::removeFragment(Fragment* frag)
 {
-    sem_wait(&mMutex);
+    mutex_lock(&mMutex);
 	uint64_t job_id = frag->getJobNum();
 	
 	if(mJobs.find(job_id) != mJobs.end())
@@ -585,7 +586,7 @@ void Kraken::removeFragment(Fragment* frag)
 		}
 	}
 
-    sem_post(&mMutex);
+    mutex_unlock(&mMutex);
 }
 
 void Kraken::deviceSpinLock(bool state)
@@ -606,7 +607,7 @@ void Kraken::cancelJobFragments(uint64_t jobId, char *message)
 	A5CpuSpinLock(true);
 	deviceSpinLock(true);
 
-    sem_wait(&mMutex);
+    mutex_lock(&mMutex);
 
 	/* now cancel all disk transfers */
 	for (unsigned int i=0; i<mDevices.size(); i++) 
@@ -641,7 +642,7 @@ void Kraken::cancelJobFragments(uint64_t jobId, char *message)
 	/* this job never existed...... job? which job? */
 	mJobs.erase(jobId);
 	
-    sem_post(&mMutex);
+    mutex_unlock(&mMutex);
 	
 	A5AtiSpinLock(false);
 	A5CpuSpinLock(false);
@@ -651,7 +652,7 @@ void Kraken::cancelJobFragments(uint64_t jobId, char *message)
 void Kraken::sendMessage(char *msg, int client)
 {	
 	/* make sure the console input interface does not corrupt our output */
-	sem_wait(&mConsoleMutex);
+	mutex_lock(&mConsoleMutex);
 
 	/* clear the last output. usually just the Kraken> prompt but maybe also some user input */
 	printf("\x8\x8\x8\x8\x8\x8\x8\x8\x8\x8\x8\x8\x8\x8");
@@ -676,7 +677,7 @@ void Kraken::sendMessage(char *msg, int client)
 	fflush(stdout);
 
 	/* we're done */
-	sem_post(&mConsoleMutex);
+	mutex_unlock(&mConsoleMutex);
 }
 
 
@@ -686,13 +687,13 @@ private:
 	uint64_t mRequestsRunning;
 	vector<NcqDevice*> mDevices;
 	Kraken *mKraken;
-    sem_t mMutex;
+    t_mutex mMutex;
 	int mClient;
 
 public:
 	KrakenPerfDisk(Kraken *kraken, int clientID, vector<NcqDevice*> devices)
 	{
-		sem_init( &mMutex, 0, 1 );
+		mutex_init( &mMutex );
 		mKraken = kraken;
 		mClient = clientID;
 		mDevices = devices;
@@ -703,28 +704,28 @@ public:
 
     void Start(uint64_t requests)
 	{
-		sem_wait(&mMutex);
+		mutex_lock(&mMutex);
 		for (uint64_t req=0; req<requests; req++) {
 			for (int i=0; i<(int)mDevices.size(); i++) {
-				uint64_t blockNo = (uint64_t)((double)rand() / (RAND_MAX + 1) * (mDevices[i]->getMaxBlockNum()));
+				uint64_t blockNo = (uint64_t)(((double)rand() / RAND_MAX) * (mDevices[i]->getMaxBlockNum()));
 
 				mDevices[i]->Request(UINT64_MAX, this, blockNo);
 				mRequestsRunning++;
 			}
 		}
-		sem_post(&mMutex);
+		mutex_unlock(&mMutex);
 	}
 
-	bool KrakenPerfDisk::processBlock(const void* pDataBlock)
+	bool processBlock(const void* pDataBlock)
 	{
-		sem_wait(&mMutex);
+		mutex_lock(&mMutex);
 		mRequestsRunning--;
 
 		if(!mRequestsRunning)
 		{
-			mKraken->sendMessage("216 Performance test finished. Retrieve results with 'stats'\r\n", mClient);
+			mKraken->sendMessage((char*)"216 Performance test finished. Retrieve results with 'stats'\r\n", mClient);
 		}
-		sem_post(&mMutex);
+		mutex_unlock(&mMutex);
 
 		return true;
 	}
@@ -896,7 +897,7 @@ void Kraken::serverCmd(int clientID, string cmd)
 
 		if(job_id >= 0)
 		{
-			kraken->cancelJobFragments(job_id, "400 Your request was cancelled.\r\n");
+			kraken->cancelJobFragments(job_id, (char*)"400 Your request was cancelled.\r\n");
 			sprintf(msg, "212 Cancelled job %i.\r\n", job_id);
 		}
 		else
@@ -917,7 +918,7 @@ void Kraken::serverCmd(int clientID, string cmd)
     }
     else if (!strncmp(command,"jobs",4))
 	{
-		sem_wait(&kraken->mMutex);
+		mutex_lock(&kraken->mMutex);
 		map<uint64_t,t_job>::iterator it = kraken->mJobs.begin();
 		sprintf(msg, "220 Active jobs:\r\n");
 		kraken->sendMessage(msg, clientID);
@@ -954,7 +955,7 @@ void Kraken::serverCmd(int clientID, string cmd)
 			it++;
 		}
 
-		sem_post(&kraken->mMutex);
+		mutex_unlock(&kraken->mMutex);
 
 		sprintf(msg, "220\r\n");
 		kraken->sendMessage(msg, clientID);
@@ -1079,7 +1080,7 @@ void *Kraken::consoleThread(void *arg)
 		char* ch = fgets(command, 1024, stdin);
 
 		/* make sure the console writer does not corrupt our output */
-		sem_wait(&kraken->mConsoleMutex);
+		mutex_lock(&kraken->mConsoleMutex);
 
 		command[1024]='\0';
 		if (!ch) break;
@@ -1094,7 +1095,7 @@ void *Kraken::consoleThread(void *arg)
 		fflush(stdout);
 
 		/* we're finished with printing stuff */
-		sem_post(&kraken->mConsoleMutex);
+		mutex_unlock(&kraken->mConsoleMutex);
 
 		/* process command */
 		kraken->serverCmd(-1, command);

@@ -2,7 +2,7 @@
 #include <stdio.h>
 #include "Bidirectional.h"
 
-#include "Globals.h"
+#include <Globals.h>
 
 uint64_t reverseBits(uint64_t r)
 {

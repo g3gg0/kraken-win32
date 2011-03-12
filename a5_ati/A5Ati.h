@@ -50,10 +50,11 @@
 #include <queue>
 #include <deque>
 #include <list>
-#include <semaphore.h>
+
 #include <unistd.h>
 #include <pthread.h>
 #include "Advance.h"
+#include "Globals.h"
 #include <map>
 
 using namespace std;
@@ -128,8 +129,8 @@ private:
     A5Slice** mSlices;
 
 	uint64_t mRequestCount;
-	map<uint64_t,deque<t_a5_request>> mRequests;
-	map<uint64_t,deque<t_a5_result>> mResults;
+	map<uint64_t, deque<t_a5_request> > mRequests;
+	map<uint64_t, deque<t_a5_result> > mResults;
 
     pthread_t mThread;
     static void* thread_stub(void* arg);
@@ -144,7 +145,7 @@ private:
     bool mRunning; /* false stops worker thread */
 
     /* Mutex semaphore to protect the queues */
-    sem_t mMutex;
+    t_mutex mMutex;
 #ifdef asdasdasdasd
     /* Input queues */
     deque<uint64_t> mInputStart;

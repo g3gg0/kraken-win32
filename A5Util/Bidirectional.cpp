@@ -5,7 +5,7 @@
 #include <list>
 #include <assert.h>
 
-#include "Globals.h"
+#include <Globals.h>
 
 Bidirectional::Bidirectional() :
     mPrintCand(true)

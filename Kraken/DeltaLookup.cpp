@@ -11,7 +11,7 @@
 #include <unistd.h>
 #include <stropts.h>
 
-#include "Globals.h"
+#include <Globals.h>
 
 #define READ8()\
     bits = (mBitBuffer>>(mBitCount-8))&0xff;                 \

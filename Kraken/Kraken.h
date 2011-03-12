@@ -11,7 +11,7 @@
 #include <list>
 #include <utility>
 #include <map>
-#include <semaphore.h>
+
 #include <queue>
 #include <string>
 #include <sys/time.h>
@@ -64,9 +64,9 @@ private:
     list< pair<unsigned int, DeltaLookup*> > mTables;
     typedef list< pair<unsigned int, DeltaLookup*> >::iterator tableListIt;
     static Kraken* mInstance;
-    sem_t mMutex;
-	sem_t mWasteMutex;
-    sem_t mConsoleMutex;
+    t_mutex mMutex;
+	t_mutex mWasteMutex;
+    t_mutex mConsoleMutex;
 	pthread_t mConsoleThread;
 	bool mTablesLoaded;	 
 

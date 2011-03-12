@@ -3,7 +3,8 @@
 
 #include <stdint.h>
 #include <queue>
-#include <semaphore.h>
+
+#include "Globals.h"
 #include <pthread.h>
 #include <list>
 #include <sys/time.h>
@@ -86,10 +87,10 @@ private:
     mapRequest_t mMappings[NCQ_REQUESTS];
 	
 	uint64_t mRequestCount;
-	map<uint64_t,deque<request_t>> mRequests;
+	map<uint64_t, deque<request_t> > mRequests;
     int mFreeMap;
-    sem_t mMutex;
-	sem_t mSpinlock;
+    t_mutex mMutex;
+	t_mutex mSpinlock;
     pthread_t mWorker;
 
 	struct timeval mStartTime;
