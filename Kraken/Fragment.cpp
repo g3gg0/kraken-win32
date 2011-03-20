@@ -53,7 +53,13 @@ Fragment::Fragment(uint64_t plaintext, unsigned int round, DeltaLookup* table, u
     mState(0),
     mEndpoint(0),
     mBlockStart(0),
-    mStartIndex(0)
+    mStartIndex(0),
+	/* these get set by setRef */	
+	mCount(0),
+	mCountRef(0),
+	mBitsRef(0),
+	mClientId(0),
+	mJobId(0)
 {
 }
 

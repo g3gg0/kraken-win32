@@ -48,15 +48,8 @@ DeltaLookup::DeltaLookup(NcqDevice* dev, std::string index)
 
 void DeltaLookup::UnloadTable()
 {
-    if(mPrimaryIndex)
-	{
-		free(mPrimaryIndex);
-	}
-	
-    if(mBlockIndex)
-	{
-		free(mBlockIndex);
-	}
+	free(mPrimaryIndex);
+	free(mBlockIndex);
 
     mPrimaryIndex = NULL;
     mBlockIndex = NULL;

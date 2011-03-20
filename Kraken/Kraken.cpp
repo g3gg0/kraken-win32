@@ -132,7 +132,7 @@ Kraken::Kraken(const char* config, int server_port) :
     }
     mTableInfo = string("Tables: ")+mTableInfo+string("\n");
 
-    delete [] pFile;
+    free(pFile);
 
 	printf("\r\n");
 
@@ -252,17 +252,17 @@ uint64_t Kraken::Crack(int client, const char* plaintext)
  */
 bool Kraken::Tick()
 {
-    uint64_t start_val;
-    uint64_t stop_val;
-    Fragment* frag;
-    int32_t start_rnd;
-
     mutex_lock(&mMutex);
 
+	/* using a code block to keep variables in smaller scope */
 	{	
-		/* we dont need the job id */
+		Fragment* frag;
+		uint64_t start_val;
+		uint64_t stop_val;
+		int32_t start_rnd;
 		uint64_t job_id;
 
+		/* we dont need the job id anyway */
 		while (A5CpuPopResult(job_id, start_val, stop_val, start_rnd, (void**)&frag)) {
 			frag->handleSearchResult(stop_val, start_rnd);
 		}
