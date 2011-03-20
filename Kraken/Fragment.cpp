@@ -59,26 +59,43 @@ Fragment::Fragment(uint64_t plaintext, unsigned int round, DeltaLookup* table, u
 
 bool Fragment::processBlock(const void* pDataBlock)
 {
-    int res = mTable->CompleteEndpointSearch(pDataBlock, mBlockStart, mEndpoint, mStartIndex);
+    int res = 0;
+	
+	if(pDataBlock != NULL)
+	{
+		res = mTable->CompleteEndpointSearch(pDataBlock, mBlockStart, mEndpoint, mStartIndex);
+	}
 
-    if (res) {
+    if (res) 
+	{
         /* Found endpoint */
         uint64_t search_rev = mStartIndex;
         ApplyIndexFunc(search_rev, 34);
-		if (Kraken::getInstance()->isUsingAti()) {
-            if (mNumRound) {
+		if (Kraken::getInstance()->isUsingAti()) 
+		{
+            if (mNumRound) 
+			{
                 int res = A5AtiSubmitPartial(mJobId, search_rev, mNumRound, mAdvance, this);
-                if (res<0) printf(" [E] Failed to queue A5Ati job.\n");
+                if (res<0) 
+				{
+					printf(" [E] Failed to queue A5Ati job.\n");
+				}
                 mState = 3;
-            } else {
+            } 
+			else 
+			{
                 A5CpuKeySearch(mJobId, search_rev, mKnownPlaintext, 0, mNumRound+1, mAdvance, this);
                 mState = 2;
             }
-        } else {
+        } 
+		else 
+		{
             A5CpuKeySearch(mJobId, search_rev, mKnownPlaintext, 0, mNumRound+1, mAdvance, this);
             mState = 2;
         }
-    } else {
+    } 
+	else 
+	{
 		Kraken::getInstance()->queueFragmentRemoval(this, false, 0);
     }
 

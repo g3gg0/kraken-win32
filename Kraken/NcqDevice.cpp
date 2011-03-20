@@ -17,7 +17,6 @@
 
 #include <Globals.h>
 
-
 NcqDevice::NcqDevice(const char* pzDevNode)
 {
     mRunning = false;
@@ -329,8 +328,8 @@ void NcqDevice::WorkerThread()
 			{
 		        mutex_unlock(&mMutex);
 				mRunning = false;
-				printf (" [E] ReadFile on device '%s' failed with code %i.\r\n", mDeviceName, errorcode);
-				printf (" [E] Aborting reader thread. No further processing possible.\r\n");
+				printf (" [E] ReadFile/mmap64 on device '%s' failed with code %i.\r\n", mDeviceName, errorcode);
+				printf (" [E] Aborting reader thread. No further processing possible. Fix this problem first.\r\n");
 				return;
 			}
         }
@@ -343,6 +342,7 @@ void NcqDevice::WorkerThread()
             if (mMappings[i].req) 
 			{
 				bool finished = false;
+				bool failed = false;
 				queued = true;
 					
 #ifdef WIN32
@@ -351,15 +351,36 @@ void NcqDevice::WorkerThread()
 				BOOL ret = GetOverlappedResult(mDevice, &(mMappings[i].overlapped), &bytesRead, FALSE);
 				
 				/* seems so */
-                if (ret == TRUE && bytesRead == 4096) 
+                if (ret == TRUE)
 				{
-					finished = true;
+					/* make sure it read enough data */
+					if (bytesRead == 4096)
+					{
+						finished = true;
+					}
+					else
+					{
+						/* wait - it said its done, but didnt read 4k? liar! */
+						printf (" [E] ReadFile on device '%s' failed. Read of block %I64d suceeded, but only %i bytes read.\r\n", mDeviceName, mMappings[i].blockno, bytesRead);
+						failed = true;
+					}
+				}
+				else
+				{
+					/* check whats up with this read... */
+					DWORD err = GetLastError();
+
+					if (err != ERROR_IO_INCOMPLETE && err != ERROR_IO_PENDING)
+					{
+						printf (" [E] ReadFile on device '%s' failed with error 0x%4X. Tried to read block %I64d.\r\n", mDeviceName, err, mMappings[i].blockno);
+						failed = true;
+					}
 				}
 #else				
 				unsigned char core[4];
 
 				/* check if the page was already loaded */
-                mincore(mMappings[i].addr, 4096, core);
+                mincore (mMappings[i].addr, 4096, core);
                 if (core[0] & 0x01) 
 				{
 					finished = true;
@@ -370,10 +391,18 @@ void NcqDevice::WorkerThread()
                     madvise(mMappings[i].addr, 4096, MADV_WILLNEED);
 				}
 #endif
+
+				/* when failed, behave like reading succeeded but pass NULL as result */
+				if (failed)
+				{
+					finished = true;
+					mMappings[i].addr = NULL;
+				}
+
                 if (finished) 
 				{
 					mBlocksRead++;
-					if(!mMappings[i].cancelled)
+					if (!mMappings[i].cancelled)
 					{
 						mMappings[i].req->processBlock(mMappings[i].addr);
 					}
@@ -382,7 +411,10 @@ void NcqDevice::WorkerThread()
 						
 #ifndef WIN32
 					/* not needed anymore */
-                    munmap(mMappings[i].addr, 4096);
+					if(!failed)
+					{
+						munmap(mMappings[i].addr, 4096);
+					}
 #endif
 
                     /* Add to free list */
