@@ -1,0 +1,48 @@
+<?xml version="1.0" encoding="Windows-1252"?>
+<VisualStudioProject
+	ProjectType="Intel C++ Project"
+	Version="12.0"
+	Name="A5Ati"
+	ProjectGUID="{22F685B3-CCC5-43C8-83E3-0E0EE4D71F2D}"
+	VCNestedProjectGUID="{0C9222C6-000C-49BA-83A2-BB2FDA32BEF4}"
+	VCNestedProjectFileName="A5Ati.vcproj"
+	>
+	<Configurations>
+		<Configuration
+			Name="Release|Win32"
+			>
+			<Tool
+				Name="IntelDebuggingTool"
+				ParallelDebugEnvironment="0"
+			/>
+			<Tool
+				Name="CppCmplrTool"
+				Optimization="1000"
+				InterproceduralOptimization="1"
+				EnableEnhancedInstructionSet="1000"
+				FloatingPointModel="1000"
+				WarningLevel="1000"
+				GenerateAlternateCodePaths="5"
+				UseProcessorExtensions="6"
+				Parallelization="true"
+			/>
+		</Configuration>
+		<Configuration
+			Name="Release|x64"
+			>
+			<Tool
+				Name="CppCmplrTool"
+				Optimization="1000"
+				InterproceduralOptimization="1"
+				EnableEnhancedInstructionSet="1000"
+				FloatingPointModel="1000"
+				WarningLevel="1000"
+				GenerateAlternateCodePaths="5"
+				UseProcessorExtensions="6"
+				Parallelization="true"
+				UseIntelOptimizedHeaders="true"
+			/>
+		</Configuration>
+	</Configurations>
+	<Files/>
+</VisualStudioProject>
