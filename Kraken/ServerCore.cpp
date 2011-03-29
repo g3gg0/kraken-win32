@@ -275,7 +275,7 @@ int ClientConnection::Write(string dat)
 #ifndef WIN32
         size_t r = write(mFd, &dat.c_str()[pos], remain);
 #else
-        size_t r = send(mFd, &dat.c_str()[pos], (int)remain, 0);
+        int r = send(mFd, &dat.c_str()[pos], (int)remain, 0);
 #endif
         if (r<0) break;
         remain-=r;

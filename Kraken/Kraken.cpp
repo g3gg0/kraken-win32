@@ -96,7 +96,7 @@ Kraken::Kraken(const char* config, int server_port) :
 				printf("\x8\x8\x8\x8\x8\x8\x8\x8\x8\x8\x8\x8\x8\x8");
 				printf("\x8\x8\x8\x8\x8\x8\x8\x8\x8\x8\x8\x8\x8\x8");
 				printf("\r");
-				printf(" [x] Loaded tables: %i    ", mTables.size() + 1);
+				printf(" [x] Loaded tables: %i    ", (int)(mTables.size() + 1));
 				fflush(stdout);
 
                 sscanf(&(pFile[pos+7]),"%u %u %llu",&devno,&advance,&offset);
@@ -518,7 +518,7 @@ void Kraken::queueFragmentRemoval(Fragment *frag, bool table_hit, uint64_t resul
 	if(!deleted)
 	{
 		mutex_lock(&mWasteMutex);
-		mWastedFragments[frag] = frag->getJobNum();
+		mWastedFragments[frag] = (int)frag->getJobNum();
 		mutex_unlock(&mWasteMutex);
 	}
 
@@ -728,7 +728,8 @@ public:
 		if(!mRequestsRunning)
 		{
 			mKraken->sendMessage((char*)"216 Performance test finished. Retrieve results with 'stats'\r\n", mClient);
-			return delete this;
+			delete this;
+			return false;
 		}
 
 		return true;
@@ -753,7 +754,8 @@ public:
 		mutex_init( &mMutex );
 		mKraken = kraken;
 		mClient = clientID;
-		mRequestsRunning = 0;   
+		mRequestsRunning = 0;
+		mAti = ati;
 		
 		srand( (unsigned)time( NULL ) );
 	}
@@ -794,7 +796,8 @@ public:
 			sprintf(msg, "216 A5 Performance test failed. Algo returned invalid result value.\r\n" );
 			mKraken->sendMessage(msg, mClient);
 
-			return delete this;
+			delete this;
+			return false;
 		}
 
 		if(!mRequestsRunning)
@@ -811,7 +814,8 @@ public:
 			sprintf(msg, "216 A5 Performance test finished. Average %.3f calcs/s \r\n", calcs );
 			mKraken->sendMessage(msg, mClient);
 
-			return delete this;
+			delete this;
+			return false;
 		}
 
 		return true;
@@ -934,7 +938,10 @@ void Kraken::serverCmd(int clientID, string cmd)
 
 		for (int i=0; i<kraken->mNumDevices; i++) {
 			strcat(buffer,kraken->mDevices[i]->GetDeviceStats());
-			strcat(buffer," - ");
+			if((i + 1) < kraken->mNumDevices)
+			{
+				strcat(buffer," - ");
+			}
 
 			size += strlen(buffer) + 1;
 			buffer = (char*)realloc(buffer, size);
@@ -1158,7 +1165,7 @@ void Kraken::serverCmd(int clientID, string cmd)
 		}
 		else if(!strncmp(ch,"cpu",3))
 		{
-			unsigned long calcs = 10;
+			unsigned long calcs = 1000;
 			ch = ch + 3;
 			while (*ch && (*ch==' ')) ch++;
 

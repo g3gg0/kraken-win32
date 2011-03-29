@@ -203,9 +203,6 @@ uint64_t TheMatrix::CountUnmix(uint64_t state, uint64_t count)
    
 void TheMatrix::Invert()
 {
-    int moved[64];
-    for (int i=0; i<64; i++) moved[i] = 0;
-
     int swaps = 1;
 
     /* elimination */

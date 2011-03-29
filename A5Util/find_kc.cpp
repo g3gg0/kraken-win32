@@ -17,8 +17,6 @@ int find_kc(uint64_t stop, uint32_t pos, uint32_t framecount, uint32_t framecoun
     back.ClockBack( stop_val, 101+pos );
     uint64_t tst;
     unsigned char bytes[16];
-    char out[115];
-    out[114]='\0';
     int x = 0;
 
     while (back.PopCandidate(tst)) {
@@ -34,7 +32,7 @@ int find_kc(uint64_t stop, uint32_t pos, uint32_t framecount, uint32_t framecoun
         }
 #endif
 
-        if (framecount2>=0 && testbits && strlen(testbits) > 0) {
+        if (testbits && strlen(testbits) > 0) {
             uint64_t mix = tm.KeyMix(orig);
             mix = tm.CountMix(mix,framecount2);
             mix = back.Forwards(mix, 101, NULL);

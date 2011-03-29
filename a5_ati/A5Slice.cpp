@@ -203,7 +203,7 @@ A5Slice::A5Slice(AtiA5* cont, int dev, int dp, int rounds, int pipe_mult) :
 	printf(" [x] A5Ati:   [%i] Using %i threads\n", mDevNo, mNum );
 
 	mUsable = true;
-};
+}
 
 A5Slice::~A5Slice() {
     CalDevice::unrefResource(mConstCount);

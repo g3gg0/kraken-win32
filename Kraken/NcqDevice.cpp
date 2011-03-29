@@ -34,11 +34,11 @@ NcqDevice::NcqDevice(const char* pzDevNode)
      */
 	if(offsetstr)
 	{
-		sscanf(offsetstr+1, "%Lu", &mStartSector);
+		sscanf(offsetstr+1, "%llu", &mStartSector);
 		*offsetstr = '\000';
 	}
 
-	printf(" [x] Opening device '%s', start sector %Lu\r\n", mDeviceName, mStartSector);
+	printf(" [x] Opening device '%s', start sector %llu\r\n", mDeviceName, mStartSector);
 	sprintf(mDeviceStats, "%s: (no data yet)", mDeviceName);
 
 	uint64_t diskSize = 0;
@@ -361,7 +361,7 @@ void NcqDevice::WorkerThread()
 					else
 					{
 						/* wait - it said its done, but didnt read 4k? liar! */
-						printf (" [E] ReadFile on device '%s' failed. Read of block %I64d suceeded, but only %i bytes read.\r\n", mDeviceName, mMappings[i].blockno, bytesRead);
+						printf (" [E] ReadFile on device '%s' failed. Read of block %I64u suceeded, but only %lu bytes read.\r\n", mDeviceName, mMappings[i].blockno, bytesRead);
 						failed = true;
 					}
 				}
@@ -372,7 +372,7 @@ void NcqDevice::WorkerThread()
 
 					if (err != ERROR_IO_INCOMPLETE && err != ERROR_IO_PENDING)
 					{
-						printf (" [E] ReadFile on device '%s' failed with error 0x%4X. Tried to read block %I64d.\r\n", mDeviceName, err, mMappings[i].blockno);
+						printf (" [E] ReadFile on device '%s' failed with error 0x%4X. Tried to read block %I64u.\r\n", mDeviceName, err, mMappings[i].blockno);
 						failed = true;
 					}
 				}

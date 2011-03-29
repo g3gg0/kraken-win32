@@ -66,7 +66,7 @@ unsigned char* getKernelGeneric(unsigned int dp, char* name)
 	bool zipped = true;
 
     dp -= 11;
-    if ((dp<0)||(dp>3)) return NULL;
+    if (dp>3) return NULL;
 
 #ifdef WIN32
 	char filename[32];
