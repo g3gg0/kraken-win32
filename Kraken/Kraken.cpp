@@ -263,12 +263,15 @@ bool Kraken::Tick()
 		uint64_t job_id;
 
 		/* we dont need the job id anyway */
-		while (A5CpuPopResult(job_id, start_val, stop_val, start_rnd, (void**)&frag)) {
+		while (A5CpuPopResult(job_id, start_val, stop_val, start_rnd, (void**)&frag)) 
+		{
 			frag->handleSearchResult(stop_val, start_rnd);
 		}
 
-		if (mUsingAti) {
-			while (A5AtiPopResult(job_id, start_val, stop_val, (void**)&frag)) {
+		if (mUsingAti) 
+		{
+			while (A5AtiPopResult(job_id, start_val, stop_val, (void**)&frag)) 
+			{
 				frag->handleSearchResult(stop_val, 0);
 			}
 		}
@@ -720,16 +723,101 @@ public:
 	{
 		mutex_lock(&mMutex);
 		mRequestsRunning--;
+		mutex_unlock(&mMutex);
 
 		if(!mRequestsRunning)
 		{
 			mKraken->sendMessage((char*)"216 Performance test finished. Retrieve results with 'stats'\r\n", mClient);
+			return delete this;
 		}
-		mutex_unlock(&mMutex);
 
 		return true;
 	}
 };
+
+
+class KrakenPerfA5 : Fragment {
+
+private:
+	uint64_t mRequestsRunning;
+	uint64_t mTotalRequests;
+	Kraken *mKraken;
+    t_mutex mMutex;
+	int mClient;
+	struct timeval mStartTime;
+	bool mAti;
+
+public:
+	KrakenPerfA5(Kraken *kraken, int clientID, bool ati)
+	{
+		mutex_init( &mMutex );
+		mKraken = kraken;
+		mClient = clientID;
+		mRequestsRunning = 0;   
+		
+		srand( (unsigned)time( NULL ) );
+	}
+
+    void Start(uint64_t requests)
+	{
+		uint64_t start_value = 0;
+
+		mTotalRequests = requests;
+		gettimeofday(&mStartTime, NULL);
+
+		mutex_lock(&mMutex);
+		for (uint64_t req=0; req<requests; req++) 
+		{
+			if(mAti)
+			{
+				A5AtiSubmit(UINT64_MAX, start_value, 0, 0, this);
+			}
+			else
+			{
+				A5CpuSubmit(UINT64_MAX, start_value, 0, 0, this);
+			}
+			mRequestsRunning++;
+		}
+		mutex_unlock(&mMutex);
+	}
+
+	bool handleSearchResult(uint64_t result, int start_round)
+	{
+		mutex_lock(&mMutex);
+		mRequestsRunning--;
+		mutex_unlock(&mMutex);
+
+		/* thats the result of start_value=0, start_round=0 */
+		if(result != 0xd5258184902f7000 || start_round != 0)
+		{
+			char msg[256];
+			sprintf(msg, "216 A5 Performance test failed. Algo returned invalid result value.\r\n" );
+			mKraken->sendMessage(msg, mClient);
+
+			return delete this;
+		}
+
+		if(!mRequestsRunning)
+		{
+			struct timeval stopTime;
+
+			gettimeofday(&stopTime, NULL);
+			uint64_t diff = 1000000 * (stopTime.tv_sec - mStartTime.tv_sec);
+			diff += stopTime.tv_usec - mStartTime.tv_usec;
+
+			double calcs = ((double)mTotalRequests / (double)diff) * 1000000.0f;
+
+			char msg[256];
+			sprintf(msg, "216 A5 Performance test finished. Average %.3f calcs/s \r\n", calcs );
+			mKraken->sendMessage(msg, mClient);
+
+			return delete this;
+		}
+
+		return true;
+	}
+};
+
 
 
 
@@ -1047,9 +1135,42 @@ void Kraken::serverCmd(int clientID, string cmd)
 			else
 			{
 				sprintf(msg, "215 Starting disk performance test. (queueing %lu random reads)\r\n", seeks );
-				/* TODO: we should free this later.... */
 				KrakenPerfDisk *perf = new KrakenPerfDisk(kraken, clientID, kraken->mDevices);
 				perf->Start(seeks);
+			}
+		}
+		else if(!strncmp(ch,"ati",3))
+		{
+			unsigned long calcs = 32000;
+			ch = ch + 3;
+			while (*ch && (*ch==' ')) ch++;
+
+			if(*ch && sscanf(ch, "%lu", &calcs) != 1)
+			{
+	            sprintf(msg, "400 Bad request\r\n" );
+			}
+			else
+			{
+				sprintf(msg, "215 Starting ATI performance test. (queueing %lu nullvalue-calcs)\r\n", calcs );
+				KrakenPerfA5 *perf = new KrakenPerfA5(kraken, clientID, true);
+				perf->Start(calcs);
+			}
+		}
+		else if(!strncmp(ch,"cpu",3))
+		{
+			unsigned long calcs = 10;
+			ch = ch + 3;
+			while (*ch && (*ch==' ')) ch++;
+
+			if(*ch && sscanf(ch, "%lu", &calcs) != 1)
+			{
+	            sprintf(msg, "400 Bad request\r\n" );
+			}
+			else
+			{
+				sprintf(msg, "215 Starting CPU performance test. (queueing %lu nullvalue-calcs)\r\n", calcs );
+				KrakenPerfA5 *perf = new KrakenPerfA5(kraken, clientID, false);
+				perf->Start(calcs);
 			}
 		}
 		else

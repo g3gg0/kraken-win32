@@ -45,6 +45,24 @@ void ApplyIndexFunc(uint64_t& start_index, int bits)
     start_index = kr02_mergebits((w<<bits)|start_index);
 }
 
+Fragment::Fragment() :
+    mKnownPlaintext(0),
+    mNumRound(0),
+    mAdvance(0),
+    mTable(NULL),
+    mState(0),
+    mEndpoint(0),
+    mBlockStart(0),
+    mStartIndex(0),
+	/* these get set by setRef */	
+	mCount(0),
+	mCountRef(0),
+	mBitsRef(0),
+	mClientId(0),
+	mJobId(0)
+{
+}
+
 Fragment::Fragment(uint64_t plaintext, unsigned int round, DeltaLookup* table, unsigned int advance) :
     mKnownPlaintext(plaintext),
     mNumRound(round),

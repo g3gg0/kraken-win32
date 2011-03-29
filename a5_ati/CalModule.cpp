@@ -8,7 +8,8 @@
 CalModule::CalModule(CALcontext* ctx) :
     mCtx(ctx),
     mLoaded(false),
-    mRunning(false)
+    mRunning(false),
+	mDev(NULL)
 {
 }
 

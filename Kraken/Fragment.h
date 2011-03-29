@@ -16,6 +16,7 @@
 
 class Fragment : public NcqRequestor {
 public:
+    Fragment();
     Fragment(uint64_t plaintext, unsigned int round, DeltaLookup* table, unsigned int advance);
     bool processBlock(const void* pDataBlock);
 
@@ -39,7 +40,7 @@ public:
     int getClientId() {return mClientId;}
 	void cancel();
 
-    bool handleSearchResult(uint64_t result, int start_round);
+    virtual bool handleSearchResult(uint64_t result, int start_round);
 
 private:
 	uint64_t mJobId;
