@@ -1,7 +1,7 @@
 #ifndef __GLOBALS_H__
 #define __GLOBALS_H__
 
-/* random token for SVN version push: 43fa4rqref */
+/* random token for SVN version push: 5ttgs357 */
 
 //#define MEMDEBUG
 
