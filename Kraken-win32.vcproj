@@ -355,19 +355,11 @@
 	</Configurations>
 	<References>
 		<ProjectReference
-			ReferencedProjectIdentifier="{22F685B3-CCC5-43C8-83E3-0E0EE4D71F2D}"
-			CopyLocal="false"
-			CopyLocalDependencies="false"
-			UseInBuild="false"
-			CopyLocalSatelliteAssemblies="false"
-			RelativePathToProject=".\Kraken-win32\A5Ati.icproj"
-		/>
-		<ProjectReference
-			ReferencedProjectIdentifier="{18282DA9-0657-433E-A597-5E9B2166CAD2}"
+			ReferencedProjectIdentifier="{B2A9871E-8028-4B4D-9763-7E1961256964}"
 			CopyLocal="false"
 			CopyLocalDependencies="false"
 			CopyLocalSatelliteAssemblies="false"
-			RelativePathToProject=".\Kraken-win32\A5Cpu.icproj"
+			RelativePathToProject=".\Kraken-win32\A5Cpu.vcproj"
 		/>
 	</References>
 	<Files>
@@ -460,14 +452,14 @@
 			</File>
 		</Filter>
 		<Filter
-			Name="A5Ati"
+			Name="A5Gpu"
 			>
 			<File
-				RelativePath=".\a5_ati\A5AtiStubs.cpp"
+				RelativePath=".\a5_ati\A5GpuStubs.cpp"
 				>
 			</File>
 			<File
-				RelativePath=".\a5_ati\A5AtiStubs.h"
+				RelativePath=".\a5_ati\A5GpuStubs.h"
 				>
 			</File>
 		</Filter>

@@ -86,7 +86,6 @@ A5Slice::A5Slice(AtiA5* cont, int dev, int dp, int rounds, int pipe_mult) :
 
     if (myKernel == NULL) {
 		printf ( " [E] A5Ati:   [%i] Could not load optimized kernel\r\n", mDevNo);
-	    freeKernel(myKernel);
 		return;
     }
 
@@ -104,7 +103,7 @@ A5Slice::A5Slice(AtiA5* cont, int dev, int dp, int rounds, int pipe_mult) :
 	    if (calclCompile(&mObject, CAL_LANGUAGE_IL, (const CALchar*)myKernel, mDev->getDeviceInfo()->target) != CAL_RESULT_OK) {
 			printf ( " [E] A5Ati:   [%i] Compilation failed.\r\n", mDevNo);
 			printf ( " [E] A5Ati:   [%i]   Reason: %s\r\n", mDevNo, calclGetErrorString());
-			printf ( " [E] A5Ati:   [%i] Your card might be too old for this code.\r\n", mDevNo);
+			printf ( " [E] A5Ati:   [%i]   Your card might be too old for this code.\r\n", mDevNo);
 			return;
 		}
 		printf ( " [x] A5Ati:   [%i] Warning: Using unoptimized kernel for your device.\r\n", mDevNo);
@@ -514,6 +513,11 @@ void A5Slice::populate() {
 bool A5Slice::tick()
 {
     CALresult res;
+
+	if(!mUsable)
+	{
+		return false;
+	}
 
     switch(mWaitState) {
     case ePopulate:

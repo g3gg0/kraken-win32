@@ -6,7 +6,7 @@
 typedef CRITICAL_SECTION t_mutex;
 
 /* assuming the inital value of the semaphore is 1 */
-#define mutex_init(sem,pshared,value) InitializeCriticalSection(sem)
+#define mutex_init(sem)               InitializeCriticalSection(sem)
 #define mutex_destroy(sem)            DeleteCriticalSection(sem)
 #define mutex_unlock(sem)             LeaveCriticalSection(sem)
 #define mutex_lock(sem)               EnterCriticalSection(sem)

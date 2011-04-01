@@ -1,5 +1,5 @@
 
-#include "A5AtiStubs.h"
+#include "A5GpuStubs.h"
 
 #include <stdio.h>
 #include <Globals.h>
@@ -21,6 +21,7 @@ static bool (*fPipelineInfo)(int &length) = NULL;
 static bool (*fInit)(int max, int cond, unsigned int mask, int mult) = NULL;
 static int  (*fSubmit)(uint64_t job_id, uint64_t value, unsigned int start, uint32_t id, void* ctx) = NULL;
 static int  (*fSubmitPartial)(uint64_t job_id, uint64_t value, unsigned int stop, uint32_t id, void* ctx ) = NULL;
+static int  (*fKeySearch)(uint64_t start_value, uint64_t target, int32_t start_round, int32_t stop_round, uint32_t advance, void* context) = NULL;
 static bool (*fPopResult)(uint64_t& job_id, uint64_t& start, uint64_t& stop, void** ctx) = NULL;
 static bool (*fIsIdle)(void) = NULL;
 static void (*fClear)(void) = NULL;
@@ -34,13 +35,13 @@ static bool LoadDllSym(void* handle, const char* name, void** func)
 #ifndef WIN32
     char* lError = dlerror();
     if (lError) {
-        fprintf(stderr, "Error when loading symbol (%s): %s\n", name, lError);
+		fprintf(stderr, " [E] A5Gpu: Error when loading symbol (%s): %s\n", name, lError);
         isDllError = true;
         return false;
     }
 #else
     if (*func == NULL) {
-        fprintf(stderr, "Error when loading symbol (%s): 0x%08X\n", name, GetLastError());
+        fprintf(stderr, " [E] A5Gpu: Error when loading symbol (%s): 0x%08X\n", name, GetLastError());
         isDllError = true;
         return false;
     }
@@ -52,21 +53,21 @@ static void LoadDLL(void)
 {
     if (isDllError) return;
 
-    void* lHandle = DL_OPEN("./A5Ati"DL_EXT);
+    void* lHandle = DL_OPEN("./A5Gpu"DL_EXT);
 
 #ifndef WIN32
     char* lError = dlerror();
     if (lError) {
-		fprintf(stderr, "No A5Ati"DL_EXT" found. Will not use an ATI graphics card.\n");
+		fprintf(stderr, " [i] No A5Gpu"DL_EXT" found. Will not use a graphics card.\n");
         return;
     }
 #else
 	if (lHandle == NULL) {
 		if(GetLastError() != ERROR_MOD_NOT_FOUND) {
-			fprintf(stderr, "Will not use A5Ati"DL_EXT". Error Code: 0x%08X\n", GetLastError());
+			fprintf(stderr, " [E] Will not use A5Gpu"DL_EXT". Error Code: 0x%08X\n", GetLastError());
 		}
 		else {
-			fprintf(stderr, "No A5Ati"DL_EXT" found. Will not use an ATI graphics card.\n");
+			fprintf(stderr, " [i] No A5Gpu"DL_EXT" found. Will not use a graphics card.\n");
 		}
     return;
     }
@@ -76,6 +77,7 @@ static void LoadDLL(void)
     LoadDllSym(lHandle, "A5Init", (void**)&fInit);
     LoadDllSym(lHandle, "A5Submit", (void**)&fSubmit);
     LoadDllSym(lHandle, "A5SubmitPartial", (void**)&fSubmitPartial);
+    LoadDllSym(lHandle, "A5KeySearch", (void**)&fKeySearch);
     LoadDllSym(lHandle, "A5PopResult", (void**)&fPopResult);
     LoadDllSym(lHandle, "A5IsIdle", (void**)&fIsIdle);
 	LoadDllSym(lHandle, "A5Clear", (void**)&fClear);
@@ -87,86 +89,95 @@ static void LoadDLL(void)
 }
 
 
-bool A5AtiInit(int max_rounds, int condition, unsigned int gpu_mask,
+bool A5GpuInit(int max_rounds, int condition, unsigned int gpu_mask,
                  int pipemul)
 {
     LoadDLL();
-    if (isDllLoaded) {
+    if (isDllLoaded && fInit != NULL) {
         return fInit(max_rounds, condition, gpu_mask, pipemul);
     } else {
         return false;
     }
 }
 
-bool A5AtiPipelineInfo(int &length)
+bool A5GpuPipelineInfo(int &length)
 {
-    if (isDllLoaded) {
+    if (isDllLoaded && fPipelineInfo != NULL) {
         return fPipelineInfo(length);
     } else {
         return false;
     }
 }
-  
-int A5AtiSubmit(uint64_t job_id, uint64_t start_value, uint32_t start_round, uint32_t advance, void* context)
+
+int A5GpuKeySearch(uint64_t job_id, uint64_t start_value, uint64_t target, int32_t start_round, int32_t stop_round, uint32_t advance, void* context)
 {
-    if (isDllLoaded) {
+    if (isDllLoaded && fKeySearch != NULL) {
+        return fKeySearch(start_value, target, start_round, stop_round, advance, context);
+    } else {
+        return -1;
+    }
+}
+
+int A5GpuSubmit(uint64_t job_id, uint64_t start_value, uint32_t start_round, uint32_t advance, void* context)
+{
+    if (isDllLoaded && fSubmit != NULL) {
         return fSubmit(job_id, start_value, start_round, advance, context);
     } else {
         return -1;
     }
 }
 
-int  A5AtiSubmitPartial(uint64_t job_id, uint64_t start_value, uint32_t end_round, uint32_t advance, void* context)
+int  A5GpuSubmitPartial(uint64_t job_id, uint64_t start_value, uint32_t end_round, uint32_t advance, void* context)
 {
-    if (isDllLoaded) {
+    if (isDllLoaded && fSubmitPartial != NULL) {
         return fSubmitPartial(job_id, start_value, end_round, advance, context);
     } else {
         return -1;
     }
 }
   
-bool A5AtiIsIdle()
+bool A5GpuIsIdle()
 {
-    if (isDllLoaded) {
+    if (isDllLoaded && fIsIdle != NULL) {
         return fIsIdle();
     } else {
         return false;
     }
 }
 
-void A5AtiClear()
+void A5GpuClear()
 {
-	if (isDllLoaded) {
+	if (isDllLoaded && fClear != NULL) {
 		fClear();
 	}  
 }
 
-void A5AtiCancel(uint64_t job_id)
+void A5GpuCancel(uint64_t job_id)
 {
-	if (isDllLoaded) {
+	if (isDllLoaded && fCancel != NULL) {
 		fCancel(job_id);
 	}  
 }
 
-void A5AtiSpinLock(bool state)
+void A5GpuSpinLock(bool state)
 {
-	if (isDllLoaded) {
+	if (isDllLoaded && fSpinLock != NULL) {
 		fSpinLock(state);
 	}  
 }
 
-bool A5AtiPopResult(uint64_t& job_id, uint64_t& start_value, uint64_t& stop_value, void** context)
+bool A5GpuPopResult(uint64_t& job_id, uint64_t& start_value, uint64_t& stop_value, void** context)
 {
-    if (isDllLoaded) {
+    if (isDllLoaded && fPopResult != NULL) {
         return fPopResult(job_id, start_value, stop_value, context);
     } else {
         return false;
     }
 }
   
-void A5AtiShutdown()
+void A5GpuShutdown()
 {
-    if (isDllLoaded) {
+    if (isDllLoaded && fShutdown != NULL) {
         fShutdown();
     } 
 }

@@ -11,7 +11,7 @@
 #include <limits.h>
 
 #include "../a5_cpu/A5CpuStubs.h"
-#include "../a5_ati/A5AtiStubs.h"
+#include "../a5_ati/A5GpuStubs.h"
 
 #include <Globals.h>
 
@@ -142,7 +142,7 @@ Kraken::Kraken(const char* config, int server_port) :
 	mutex_init( &mConsoleMutex );
 
     A5CpuInit(8, 12, 4);
-    mUsingAti = A5AtiInit(8,12,0xffffffff,1);
+    mUsingAti = A5GpuInit(8,12,0xffffffff,1);
 
 	gettimeofday(&mLastJobTime, NULL);
 	mBusy = false;
@@ -203,7 +203,7 @@ void Kraken::Shutdown()
 		mServer = NULL;
 
 		A5CpuShutdown();
-		A5AtiShutdown();
+		A5GpuShutdown();
 
 		tableListIt it = mTables.begin();
 		while (it!=mTables.end()) {
@@ -270,7 +270,7 @@ bool Kraken::Tick()
 
 		if (mUsingAti) 
 		{
-			while (A5AtiPopResult(job_id, start_val, stop_val, (void**)&frag)) 
+			while (A5GpuPopResult(job_id, start_val, stop_val, (void**)&frag)) 
 			{
 				frag->handleSearchResult(stop_val, 0);
 			}
@@ -434,7 +434,7 @@ bool Kraken::Tick()
 						/* submit that job to be processed */
 						if(mUsingAti)
 						{
-							A5AtiSubmit(jobId, plain, k, (*it).first, fr);
+							A5GpuSubmit(jobId, plain, k, (*it).first, fr);
 						}
 						else
 						{
@@ -606,7 +606,7 @@ void Kraken::deviceSpinLock(bool state)
  */
 void Kraken::cancelJobFragments(uint64_t jobId, char *message)
 {
-	A5AtiSpinLock(true);
+	A5GpuSpinLock(true);
 	A5CpuSpinLock(true);
 	deviceSpinLock(true);
 
@@ -633,7 +633,7 @@ void Kraken::cancelJobFragments(uint64_t jobId, char *message)
     }
 	mJobs[jobId].fragments.clear();
 
-	A5AtiCancel(jobId);
+	A5GpuCancel(jobId);
 	A5CpuCancel(jobId);
 
 	if(message)
@@ -647,7 +647,7 @@ void Kraken::cancelJobFragments(uint64_t jobId, char *message)
 	
     mutex_unlock(&mMutex);
 	
-	A5AtiSpinLock(false);
+	A5GpuSpinLock(false);
 	A5CpuSpinLock(false);
 	deviceSpinLock(false);
 }
@@ -772,7 +772,7 @@ public:
 		{
 			if(mAti)
 			{
-				A5AtiSubmit(UINT64_MAX, start_value, 0, 0, this);
+				A5GpuSubmit(UINT64_MAX, start_value, 0, 0, this);
 			}
 			else
 			{

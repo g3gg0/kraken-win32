@@ -53,6 +53,7 @@
 
 #include <unistd.h>
 #include <pthread.h>
+#include <semaphore.h>
 #include "Advance.h"
 #include "Globals.h"
 #include <map>

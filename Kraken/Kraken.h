@@ -14,6 +14,7 @@
 
 #include <queue>
 #include <string>
+#include <semaphore.h>
 #include <sys/time.h>
 #ifdef WIN32
 #include <compat-win32.h>

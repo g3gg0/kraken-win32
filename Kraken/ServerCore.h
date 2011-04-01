@@ -4,6 +4,7 @@
  *
  **********************************************/
 
+#include <semaphore.h>
 #include <string>
 #include <pthread.h>
 #include <map>

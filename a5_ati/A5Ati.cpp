@@ -84,7 +84,7 @@ void* AtiA5::thread_stub(void* arg)
 
 /**
  * Destroy an instance of A5 Ati searcher
- * delete tables and streams
+ * ToDo: delete tables and streams
  */
 AtiA5::~AtiA5()
 {
@@ -476,6 +476,11 @@ int  DLL_PUBLIC A5SubmitPartial(uint64_t job_id, uint64_t start_value, unsigned 
     if (a5Instance) {
         return a5Instance->SubmitPartial(job_id, start_value, stop_round, advance, context);
     }
+    return -1; /* Error */
+}
+
+int  DLL_PUBLIC A5KeySearch(uint64_t start_value, uint64_t target, int32_t start_round, int32_t stop_round, uint32_t advance, void* context)
+{
     return -1; /* Error */
 }
 

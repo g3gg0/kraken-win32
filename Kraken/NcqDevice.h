@@ -6,6 +6,7 @@
 
 #include "Globals.h"
 #include <pthread.h>
+#include <semaphore.h>
 #include <list>
 #include <sys/time.h>
 #ifdef WIN32

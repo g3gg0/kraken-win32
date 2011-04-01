@@ -5,7 +5,7 @@
 #include <stdio.h>
 
 #include "../a5_cpu/A5CpuStubs.h"
-#include "../a5_ati/A5AtiStubs.h"
+#include "../a5_ati/A5GpuStubs.h"
 
 #include <Globals.h>
 
@@ -99,22 +99,28 @@ bool Fragment::processBlock(const void* pDataBlock)
 		{
             if (mNumRound) 
 			{
-                int res = A5AtiSubmitPartial(mJobId, search_rev, mNumRound, mAdvance, this);
+                int res = A5GpuSubmitPartial(mJobId, search_rev, mNumRound, mAdvance, this);
                 if (res<0) 
 				{
-					printf(" [E] Failed to queue A5Ati job.\n");
+					printf(" [E] Failed to queue A5Gpu job.\n");
 				}
                 mState = 3;
             } 
 			else 
 			{
-                A5CpuKeySearch(mJobId, search_rev, mKnownPlaintext, 0, mNumRound+1, mAdvance, this);
+				if(A5GpuKeySearch(mJobId, search_rev, mKnownPlaintext, 0, mNumRound+1, mAdvance, this) < 0)
+				{
+					A5CpuKeySearch(mJobId, search_rev, mKnownPlaintext, 0, mNumRound+1, mAdvance, this);
+				}
                 mState = 2;
             }
         } 
 		else 
 		{
-            A5CpuKeySearch(mJobId, search_rev, mKnownPlaintext, 0, mNumRound+1, mAdvance, this);
+			if(A5GpuKeySearch(mJobId, search_rev, mKnownPlaintext, 0, mNumRound+1, mAdvance, this) < 0)
+			{
+				A5CpuKeySearch(mJobId, search_rev, mKnownPlaintext, 0, mNumRound+1, mAdvance, this);
+			}
             mState = 2;
         }
     } 
@@ -157,8 +163,11 @@ bool Fragment::handleSearchResult(uint64_t result, int start_round)
 	else 
 	{
         /* We are here because of a partial GPU search */
-        /* search final round with CPU */
-        A5CpuKeySearch(mJobId, result, mKnownPlaintext, mNumRound-1, mNumRound+1, mAdvance, this);
+        /* search final round with CPU if gpu doesnt support */
+		if(A5GpuKeySearch(mJobId, result, mKnownPlaintext, mNumRound-1, mNumRound+1, mAdvance, this) < 0)
+		{
+			A5CpuKeySearch(mJobId, result, mKnownPlaintext, mNumRound-1, mNumRound+1, mAdvance, this);
+		}
         mState = 2;
     }
 

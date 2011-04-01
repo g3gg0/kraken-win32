@@ -15,13 +15,6 @@
 #define DIR_SEP        '\\'
 #define KRAKEN_VERSION "Kraken-win32 ($Revision$, g3gg0.de, win32)"
 
-typedef CRITICAL_SECTION t_mutex;
-
-/* assuming the inital value of the semaphore is 1 */
-#define mutex_init(mutex)               InitializeCriticalSection(mutex)
-#define mutex_destroy(mutex)            DeleteCriticalSection(mutex)
-#define mutex_unlock(mutex)             LeaveCriticalSection(mutex)
-#define mutex_lock(mutex)               EnterCriticalSection(mutex)
 
 #else
 #include <dlfcn.h>

@@ -45,7 +45,7 @@
 #endif
 
 
-
+#include <semaphore.h>
 #include <unistd.h>
 #include <pthread.h>
 #include <stdint.h>
