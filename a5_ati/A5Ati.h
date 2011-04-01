@@ -87,6 +87,7 @@ public:
     ~AtiA5();
     bool PipelineInfo(int &length);
 	void Shutdown();
+	char *GetDeviceStats();
     int  Submit(uint64_t job_id, uint64_t start_value, uint32_t start_round, uint32_t advance, void* context);
     int  SubmitPartial(uint64_t job_id, uint64_t start_value, uint32_t stop_round, uint32_t advance, void* context);
     bool PopResult(uint64_t& job_id, uint64_t& start_value, uint64_t& end_value, void** context);
@@ -123,6 +124,7 @@ private:
 	bool mIdle;
 	bool mWaiting;
 	bool mWait;
+	char mDeviceStats[2048];
 	bool Init(void);
     void Process(void);
 

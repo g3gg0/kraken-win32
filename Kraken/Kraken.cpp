@@ -142,7 +142,7 @@ Kraken::Kraken(const char* config, int server_port) :
 	mutex_init( &mConsoleMutex );
 
     A5CpuInit(8, 12, 4);
-    mUsingAti = A5GpuInit(8,12,0xffffffff,1);
+    mUsingGpu = A5GpuInit(8,12,0xffffffff,1);
 
 	gettimeofday(&mLastJobTime, NULL);
 	mBusy = false;
@@ -268,7 +268,7 @@ bool Kraken::Tick()
 			frag->handleSearchResult(stop_val, start_rnd);
 		}
 
-		if (mUsingAti) 
+		if (mUsingGpu) 
 		{
 			while (A5GpuPopResult(job_id, start_val, stop_val, (void**)&frag)) 
 			{
@@ -432,7 +432,7 @@ bool Kraken::Tick()
 						mJobs[jobId].fragments[fr] = 0;
 
 						/* submit that job to be processed */
-						if(mUsingAti)
+						if(mUsingGpu)
 						{
 							A5GpuSubmit(jobId, plain, k, (*it).first, fr);
 						}
@@ -746,16 +746,16 @@ private:
     t_mutex mMutex;
 	int mClient;
 	struct timeval mStartTime;
-	bool mAti;
+	bool mGpu;
 
 public:
-	KrakenPerfA5(Kraken *kraken, int clientID, bool ati)
+	KrakenPerfA5(Kraken *kraken, int clientID, bool gpu)
 	{
 		mutex_init( &mMutex );
 		mKraken = kraken;
 		mClient = clientID;
 		mRequestsRunning = 0;
-		mAti = ati;
+		mGpu = gpu;
 		
 		srand( (unsigned)time( NULL ) );
 	}
@@ -770,7 +770,7 @@ public:
 		mutex_lock(&mMutex);
 		for (uint64_t req=0; req<requests; req++) 
 		{
-			if(mAti)
+			if(mGpu)
 			{
 				A5GpuSubmit(UINT64_MAX, start_value, 0, 0, this);
 			}
@@ -946,6 +946,16 @@ void Kraken::serverCmd(int clientID, string cmd)
 			size += strlen(buffer) + 1;
 			buffer = (char*)realloc(buffer, size);
 		}
+		char *gpuStats = A5GpuGetDeviceStats();
+
+		if(gpuStats != NULL && strlen(gpuStats) > 0)
+		{
+			size += strlen(buffer) + strlen(gpuStats) + 1;
+			buffer = (char*)realloc(buffer, size);
+
+			strcat(buffer, " - GPUs: ");
+			strcat(buffer, gpuStats);
+		}
 		strcat(buffer,"\r\n");
 
 		size = strlen(buffer) + 1;
@@ -1062,7 +1072,7 @@ void Kraken::serverCmd(int clientID, string cmd)
 		kraken->sendMessage(msg, clientID);
 		sprintf(msg, "220        CPU:  %6d\r\n", histogram[2]);
 		kraken->sendMessage(msg, clientID);
-		sprintf(msg, "220        ATI:  %6d\r\n", histogram[3]);
+		sprintf(msg, "220        GPU:  %6d\r\n", histogram[3]);
 		kraken->sendMessage(msg, clientID);
 		
 		sprintf(msg, "220\r\n");
@@ -1146,7 +1156,7 @@ void Kraken::serverCmd(int clientID, string cmd)
 				perf->Start(seeks);
 			}
 		}
-		else if(!strncmp(ch,"ati",3))
+		else if(!strncmp(ch,"gpu",3))
 		{
 			unsigned long calcs = 32000;
 			ch = ch + 3;
@@ -1158,7 +1168,7 @@ void Kraken::serverCmd(int clientID, string cmd)
 			}
 			else
 			{
-				sprintf(msg, "215 Starting ATI performance test. (queueing %lu nullvalue-calcs)\r\n", calcs );
+				sprintf(msg, "215 Starting GPU performance test. (queueing %lu nullvalue-calcs)\r\n", calcs );
 				KrakenPerfA5 *perf = new KrakenPerfA5(kraken, clientID, true);
 				perf->Start(calcs);
 			}

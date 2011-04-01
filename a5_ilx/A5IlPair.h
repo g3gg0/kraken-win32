@@ -50,6 +50,7 @@ public:
 
     void setLimit(int l) {mJobLimit=l;}
     bool IsUsable() { return mUsable; }
+	char* GetDeviceStats() { return mDeviceStats; }
 
 private:
     void process();
@@ -88,6 +89,7 @@ private:
     /* Controller */
     A5Il*         mController;
 
+	char          mDeviceStats[512];
     bool          mWaitState;
     CALevent      mEvent;
     CALcontext*   mCtx;

@@ -40,7 +40,7 @@ public:
 	void cancelJobFragments(uint64_t jobId, char *message);
 
 	void deviceSpinLock(bool state);
-    bool isUsingAti() {return mUsingAti;}
+    bool isUsingAti() {return mUsingGpu;}
 
     void reportFind(uint64_t result, Fragment *frag);
 	void sendMessage(char *msg, int client);
@@ -72,7 +72,7 @@ private:
 	bool mTablesLoaded;	 
 
 
-    bool mUsingAti;
+    bool mUsingGpu;
     bool mBusy;
 	bool mJobParallel;
     struct timeval mStartTime;

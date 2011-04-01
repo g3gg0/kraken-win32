@@ -51,7 +51,9 @@ A5IlPair::A5IlPair(A5Il* cont, int dev, int dp, int rounds,A5JobQueue* q) :
 	mUsable(false)
 {
     mDevNo = dev;
-    mMaxCycles = 70000;
+    mMaxCycles = 70000;	
+	sprintf(mDeviceStats, "(no data yet)");
+
 
     // CAL setup
     assert((dev>=0)&&(dev<CalDevice::getNumDevices()));
@@ -446,6 +448,11 @@ bool A5IlPair::tick()
         gettimeofday(&tv2, NULL);
         unsigned long diff = 1000000*(tv2.tv_sec-mTvStarted.tv_sec);
         diff += tv2.tv_usec-mTvStarted.tv_usec;
+
+		double calcs = (1.0f / (double)diff) * 1000000.0f;
+
+		sprintf(mDeviceStats, "Core %i: Average speed is %.3f jobs/s\r\n", mDevNo, calcs );
+
         // printf("Exec() took %i usec\n",(unsigned int)diff);
     }
 

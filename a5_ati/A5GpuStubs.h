@@ -24,6 +24,7 @@ void A5GpuCancel(uint64_t job_id);
 void A5GpuSpinLock(bool state);
 void A5GpuShutdown();
 
+char *A5GpuGetDeviceStats();
 void ApplyIndexFunc(uint64_t& start_index, int bits);
 int ExtractIndex(uint64_t& start_value, int bits);
 

@@ -28,6 +28,8 @@ static void (*fClear)(void) = NULL;
 static void (*fCancel)(uint64_t job_id) = NULL;
 static void (*fSpinLock)(bool state) = NULL;
 static void (*fShutdown)(void) = NULL;
+static char *(*fGetDeviceStats)(void) = NULL;
+
 
 static bool LoadDllSym(void* handle, const char* name, void** func)
 {
@@ -84,6 +86,7 @@ static void LoadDLL(void)
 	LoadDllSym(lHandle, "A5Cancel", (void**)&fCancel);
 	LoadDllSym(lHandle, "A5SpinLock", (void**)&fSpinLock);
     LoadDllSym(lHandle, "A5Shutdown", (void**)&fShutdown);
+    LoadDllSym(lHandle, "A5GetDeviceStats", (void**)&fGetDeviceStats);
 
     isDllLoaded = !isDllError;
 }
@@ -180,4 +183,13 @@ void A5GpuShutdown()
     if (isDllLoaded && fShutdown != NULL) {
         fShutdown();
     } 
+}
+
+
+char *A5GpuGetDeviceStats()
+{
+    if (isDllLoaded && fGetDeviceStats != NULL) {
+        return fGetDeviceStats();
+    } 
+	return NULL;
 }

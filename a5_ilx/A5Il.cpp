@@ -126,8 +126,8 @@ bool A5Il::Init(void)
 	int usedSlices = 0;
     int pipes = 0;
 
-    mNumSlices = 1;
-	printf(" [x] A5Il: Setting up %i GPUs with %i slices each...\n", numCores, mNumSlices);    
+    mNumSlices = numCores;
+	printf(" [x] A5Il: Setting up %i GPUs with %i slices each...\n", numCores, 1);    
 
     mSlices = new A5IlPair*[mNumSlices];
     
@@ -145,8 +145,10 @@ bool A5Il::Init(void)
         }
 	}
 
+	mNumSlices = usedSlices;
+
 	/* none of the cores did set up properly */
-	if(usedSlices == 0)
+	if(mNumSlices == 0)
 	{
 		printf(" [x] A5Il: None of the GPUs did set up properly\n");
 		return false;
@@ -245,6 +247,27 @@ void A5Il::Cancel(uint64_t job_id)
 
 void A5Il::Clear()
 {
+}
+
+char *A5Il::GetDeviceStats()
+{
+	strcpy(mDeviceStats, "");
+
+	for( int i=0; i<mNumSlices ; i++ ) {
+		char *stats = mSlices[i]->GetDeviceStats();
+
+		if(strlen(stats) + strlen(mDeviceStats) + 4  < sizeof(mDeviceStats))
+		{			
+			if(i > 0)
+			{
+				strcat(mDeviceStats, ", ");
+			}
+
+			strcat(mDeviceStats, stats);
+		}
+	}        
+
+	return mDeviceStats;
 }
   
 
@@ -350,4 +373,12 @@ void DLL_PUBLIC A5SpinLock(bool state)
 	}
 }
 
+char DLL_PUBLIC * A5GetDeviceStats()
+{  
+	if (a5Instance) {
+		return a5Instance->GetDeviceStats();
+	}
+
+	return NULL;
+}
 }

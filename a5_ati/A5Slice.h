@@ -76,6 +76,7 @@ public:
     void makeAvailable(int num) { mAvailable = num; }
     int getNumJobs() { return mNumJobs; }
     bool IsUsable() { return mUsable; }
+	char* GetDeviceStats();
 
 private:
     void process();
@@ -109,6 +110,7 @@ private:
     int           mDp;
 
     /* Controller */
+	char          mDeviceStats[512];
     AtiA5*        mController;
 
     wait_state    mWaitState;

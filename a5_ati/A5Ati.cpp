@@ -214,6 +214,27 @@ void AtiA5::Cancel(uint64_t job_id)
 void AtiA5::Clear()
 {
 }
+
+char *AtiA5::GetDeviceStats()
+{
+	strcpy(mDeviceStats, "");
+
+	for( int i=0; i<mNumSlices ; i++ ) {
+		char *stats = mSlices[i]->GetDeviceStats();
+
+		if(strlen(stats) + strlen(mDeviceStats) + 4  < sizeof(mDeviceStats))
+		{
+			if(i > 0)
+			{
+				strcat(mDeviceStats, ", ");
+			}
+			strcat(mDeviceStats, stats);
+		}
+	}        
+
+	return mDeviceStats;
+}
+  
   
 bool AtiA5::PopResult(uint64_t& job_id, uint64_t& start_value, uint64_t& end_value, void** context)
 {
@@ -531,6 +552,16 @@ void DLL_PUBLIC A5Shutdown()
 		delete a5Instance;
 	}
     a5Instance = NULL;
+}
+
+
+char DLL_PUBLIC * A5GetDeviceStats()
+{  
+	if (a5Instance) {
+		return a5Instance->GetDeviceStats();
+	}
+
+	return NULL;
 }
 
 static uint64_t kr02_whitening(uint64_t key)

@@ -61,6 +61,7 @@ A5Slice::A5Slice(AtiA5* cont, int dev, int dp, int rounds, int pipe_mult) :
     mMaxCycles = (1<<mDp)*rounds*10;
 	mAvgExecTime = 0.0f;
 	mAvgProcessTime = 0.0f;
+	sprintf(mDeviceStats, "(no data yet)");
 
     // CAL setup
     assert((dev>=0)&&(dev<CalDevice::getNumDevices()));
@@ -228,6 +229,12 @@ A5Slice::~A5Slice() {
     calclFreeImage(mImage);
     calclFreeObject(mObject);
     delete mDev;
+}
+
+char* A5Slice::GetDeviceStats() 
+{ 
+	sprintf(mDeviceStats, "Core %i: Average speed is %.3f jobs/s\r\n", mDevNo, (1.0f/mAvgProcessTime) );
+	return mDeviceStats; 
 }
 
 void A5Slice::Clear() 
@@ -532,6 +539,7 @@ bool A5Slice::tick()
         mWaitState = eDMAto;
         break;
     case eDMAto:
+        gettimeofday(&mTvStarted, NULL);
         if (calCtxIsEventDone(*mCtx, mEvent)==CAL_RESULT_PENDING) 
 		{
 			return false;
@@ -549,7 +557,6 @@ bool A5Slice::tick()
             calResUnmap(*mResControl);
 
             CALdomain domain = {0, 0, mNum, 1};
-            gettimeofday(&mTvStarted, NULL);
             if (!mModule->Exec(domain,64)) 
 			{
 				printf(" [E] A5Ati:   [%i] Could not execute module: %s\n", mDevNo, calGetErrorString());
@@ -575,9 +582,8 @@ bool A5Slice::tick()
             diff += tv2.tv_usec-mTvStarted.tv_usec;
 
 			mAvgExecTime = (mAvgExecTime + ((double)diff) / 1000000.0f) / 2;
-
-            // printf("Exec() took %i usec\n",(unsigned int)diff);
         }
+
         if (calMemCopy(&mEvent, *mCtx, *mMemLocal, mMemRemote, 0)!=CAL_RESULT_OK)
         {
             printf(" [E] A5Ati:   [%i] Error while calMemCopy: %s\n", mDevNo, calGetErrorString());
@@ -594,9 +600,9 @@ bool A5Slice::tick()
 		}
 
         {
-            struct timeval tv1;
+            //struct timeval tv1;
             struct timeval tv2;
-            gettimeofday(&tv1, NULL);
+            //gettimeofday(&tv1, NULL);
 
             CALuint pitch = 0;
             if (calResMap((CALvoid**)&mState, &pitch, *mResStateRemote, 0) != CAL_RESULT_OK) 
@@ -609,13 +615,20 @@ bool A5Slice::tick()
 
             calResUnmap(*mResStateRemote);
             mState = 0;
-            gettimeofday(&tv2, NULL);
-            unsigned long diff = 1000000*(tv2.tv_sec-tv1.tv_sec);
-            diff += tv2.tv_usec-tv1.tv_usec;
 
-			mAvgProcessTime = (mAvgProcessTime + ((double)diff) / 1000000.0f) / 2;
+			if(true)
+			{
+				gettimeofday(&tv2, NULL);
+				unsigned long diff = 1000000*(tv2.tv_sec-mTvStarted.tv_sec);
+				diff += tv2.tv_usec-mTvStarted.tv_usec;
+				double time = ((double)diff) / 1000000.0f;
+
+				mAvgProcessTime = (mAvgProcessTime + time) / 2;
+			}
+			
             // printf("process() took %i usec\n",diff);
         }
+
         if (calMemCopy(&mEvent, *mCtx, mMemRemote, *mMemLocal, 0)!=CAL_RESULT_OK)
         {
             printf(" [E] A5Ati:   [%i] Error while calMemCopy: %s\n", mDevNo, calGetErrorString());

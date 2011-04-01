@@ -90,6 +90,7 @@ public:
 	void SpinLock(bool state);
 	void Clear();
 	void Cancel(uint64_t job_id);
+	char *GetDeviceStats();
 
 private:
     friend class A5IlPair;
@@ -100,6 +101,7 @@ private:
 	
 	bool mWaiting;
 	bool mWait;
+	char mDeviceStats[2048];
 
     int mNumThreads;
     pthread_t* mThreads;
