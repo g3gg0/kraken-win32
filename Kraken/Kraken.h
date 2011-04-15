@@ -47,6 +47,7 @@ public:
     static void serverCmd(int clientID, string cmd);
     void showFragments(void);
 	static void *consoleThread(void *arg);
+	double Kraken::GetJobProgress(uint64_t jobId);
 	bool mRunning;
 
 	/* statistics */

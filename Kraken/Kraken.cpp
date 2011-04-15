@@ -611,6 +611,7 @@ void Kraken::cancelJobFragments(uint64_t jobId, char *message)
 	deviceSpinLock(true);
 
     mutex_lock(&mMutex);
+    mutex_lock(&mWasteMutex);
 
 	/* now cancel all disk transfers */
 	for (unsigned int i=0; i<mDevices.size(); i++) 
@@ -645,6 +646,7 @@ void Kraken::cancelJobFragments(uint64_t jobId, char *message)
 	/* this job never existed...... job? which job? */
 	mJobs.erase(jobId);
 	
+	mutex_unlock(&mWasteMutex);
     mutex_unlock(&mMutex);
 	
 	A5GpuSpinLock(false);
@@ -681,6 +683,32 @@ void Kraken::sendMessage(char *msg, int client)
 
 	/* we're done */
 	mutex_unlock(&mConsoleMutex);
+}
+
+
+double Kraken::GetJobProgress(uint64_t jobId)
+{
+	double progress = -1.0f;
+
+    mutex_lock(&mMutex);
+
+	/* is there a job? */
+	if(mJobs.find(jobId) != mJobs.end())
+	{
+		/* already fragments queued? */
+		if(mJobs[jobId].max_fragments > 0)
+		{
+			progress = 100.0f - ((100.0f * mJobs[jobId].fragments.size()) / mJobs[jobId].max_fragments);
+		}
+		else
+		{
+			progress = 0.0f;
+		}
+	}
+
+    mutex_unlock(&mMutex);
+
+	return progress;
 }
 
 
@@ -838,6 +866,7 @@ public:
  *   400 - invalid request
  *   405 - not allowed
  *   404 [id] - no key found for this request
+ *   405 [id] - job was cancelled
  *   
  *   210 - response to "status"-command 
  *   211 - response to "idle"-command
@@ -1002,8 +1031,11 @@ void Kraken::serverCmd(int clientID, string cmd)
 
 		if(job_id >= 0)
 		{
-			kraken->cancelJobFragments(job_id, (char*)"400 Your request was cancelled.\r\n");
+			char clientMsg[256];
+
 			sprintf(msg, "212 Cancelled job %i.\r\n", job_id);
+			sprintf(clientMsg, "405 %i Your request was cancelled by client %i.\r\n", job_id, clientID);
+			kraken->cancelJobFragments(job_id, clientMsg);
 		}
 		else
 		{
@@ -1028,11 +1060,7 @@ void Kraken::serverCmd(int clientID, string cmd)
 		sprintf(msg, "220 Active jobs:\r\n");
 		kraken->sendMessage(msg, clientID);
 
-		unsigned int histogram[4];
-		histogram[0] = 0;
-		histogram[1] = 0;
-		histogram[2] = 0;
-		histogram[3] = 0;
+		unsigned int histogram[6] = { 0, 0, 0, 0, 0, 0 };
 		int total = 0;
 
 		while (it!=kraken->mJobs.end()) 
@@ -1050,7 +1078,7 @@ void Kraken::serverCmd(int clientID, string cmd)
 			map<Fragment*,int>::iterator it2 = kraken->mJobs[job_id].fragments.begin();
 			while (it2!=kraken->mJobs[job_id].fragments.end()) {
 				int state = (*it2).first->getState();
-				if ((state>=0)&&(state<4)) {
+				if ((state>=0)&&(state<6)) {
 					histogram[state]++;
 					total++;
 				}
@@ -1074,6 +1102,10 @@ void Kraken::serverCmd(int clientID, string cmd)
 		kraken->sendMessage(msg, clientID);
 		sprintf(msg, "220        GPU:  %6d\r\n", histogram[3]);
 		kraken->sendMessage(msg, clientID);
+		sprintf(msg, "220       done:  %6d\r\n", histogram[4]);
+		kraken->sendMessage(msg, clientID);
+		sprintf(msg, "220       fail:  %6d\r\n", histogram[5]);
+		kraken->sendMessage(msg, clientID);
 		
 		sprintf(msg, "220\r\n");
     }
@@ -1087,10 +1119,10 @@ void Kraken::serverCmd(int clientID, string cmd)
 			sscanf(parm, "%i", &job_id);
 		}
 
-		if(job_id >= 0 && kraken->mJobs.find(job_id) != kraken->mJobs.end())
-		{
-			float progress = 100.0f - ((100.0f * kraken->mJobs[job_id].fragments.size()) / kraken->mJobs[job_id].max_fragments);
+		double progress = kraken->GetJobProgress(job_id);
 
+		if(progress >= 0)
+		{
 			sprintf(msg, "221 Progress of job %i is %2.2f %%\r\n", job_id, progress );
 		}
 		else

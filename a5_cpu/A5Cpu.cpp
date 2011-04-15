@@ -126,34 +126,6 @@ int  A5Cpu::Submit(uint64_t job_id, uint64_t start_value, uint64_t target,
     mutex_unlock(&mMutex);
 
 	return ret;
-
-
-#if 0
-  if (start_round>=(int)mMaxRound) return -1;
-  if (stop_round<0) stop_round = mMaxRound;
-
-  int size = 0;
-  mutex_lock(&mMutex);
-  if (target) {
-      /* Keysearches are given priority */
-      mInputStart.push_front(start_value);
-      mInputTarget.push_front(target);
-      mInputRound.push_front(start_round);
-      mInputRoundStop.push_front(stop_round);
-      mInputAdvance.push_front(advance);
-      mInputContext.push_front(context);
-  } else {
-      mInputStart.push_back(start_value);
-      mInputTarget.push_back(target);
-      mInputRound.push_back(start_round);
-      mInputRoundStop.push_back(stop_round);
-      mInputAdvance.push_back(advance);
-      mInputContext.push_back(context);
-  }
-  size = mInputRound.size();
-  mutex_unlock(&mMutex);
-  return size;
-#endif
 }  
 
 bool A5Cpu::IsIdle()
@@ -234,9 +206,10 @@ bool A5Cpu::PopResult(uint64_t& job_id, uint64_t& start_value, uint64_t& stop_va
 	/* find any pending job */
 	map<uint64_t, deque<t_a5_result> >::iterator it = mResults.begin();
 
-	/* and return the first result available */
+	/* go through all jobs */
 	while(it != mResults.end())
 	{
+		/* does this job have ready results? */
 		if(it->second.size() > 0)
 		{
 			t_a5_result res = it->second.front();
@@ -246,9 +219,16 @@ bool A5Cpu::PopResult(uint64_t& job_id, uint64_t& start_value, uint64_t& stop_va
 			start_value = res.start_value;
 			stop_value = res.end_value;
 			start_round = res.start_round;
+
 			if(context)
 			{
 				*context = res.context;
+			}
+
+			/* clear job entry if this was the last result */
+			if(it->second.size() == 0)
+			{
+				mResults.erase(job_id);
 			}
 
 			mutex_unlock(&mMutex);
@@ -302,8 +282,9 @@ void A5Cpu::Process(void)
 	map<uint64_t, deque<t_a5_request> >::iterator it = mRequests.begin();
 
 	/* and queue the first request */
-	while(!active && it != mRequests.end())
+	while((!active) && (it != mRequests.end()))
 	{
+		/* look for a job with work packets */
 		if(it->second.size() > 0)
 		{
 			t_a5_request req = it->second.front();
@@ -320,19 +301,30 @@ void A5Cpu::Process(void)
 
 			start_point_r = ReverseBits(start_point);
 
-			map< uint32_t, class Advance* >::iterator it = mAdvances.find(advance);
-			if (it==mAdvances.end()) 
+			map< uint32_t, class Advance* >::iterator it2 = mAdvances.find(advance);
+			if (it2==mAdvances.end()) 
 			{
 				class Advance* adv = new Advance(advance, mMaxRound);
 				mAdvances[advance] = adv;
 				RFtable = adv->getRFtable();
-			} else 
+			} 
+			else 
 			{
-				RFtable = (*it).second->getRFtable();
+				RFtable = (*it2).second->getRFtable();
 			}
 			active = true;
+			
+			/* clear job entry if it has no requests anymore */
+			if(it->second.size() == 0)
+			{
+				/* we may not use the iterator anymore now! */
+				mRequests.erase(job_id);
+			}
 		}
-		it++;
+		else
+		{
+			it++;
+		}
 	}
 
     mutex_unlock(&mMutex);

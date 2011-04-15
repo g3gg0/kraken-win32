@@ -267,6 +267,9 @@ void NcqDevice::WorkerThread()
 	bool idle = false;
 	struct timeval stopTime;
 
+	/* initialize first */
+	gettimeofday(&mStartTime, NULL);
+
     while (mRunning)
 	{
 		bool queued = false;

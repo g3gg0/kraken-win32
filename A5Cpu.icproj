@@ -9,6 +9,14 @@
 	>
 	<Configurations>
 		<Configuration
+			Name="Debug|Win32"
+			>
+			<Tool
+				Name="IntelDebuggingTool"
+				ParallelDebugEnvironment="1"
+			/>
+		</Configuration>
+		<Configuration
 			Name="Release|Win32"
 			>
 			<Tool

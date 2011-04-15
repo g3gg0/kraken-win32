@@ -12,12 +12,14 @@
 
 #include "NcqDevice.h"
 #include "DeltaLookup.h"
+#include <semaphore.h>
 #include <stdint.h>
 
 class Fragment : public NcqRequestor {
 public:
     Fragment();
     Fragment(uint64_t plaintext, unsigned int round, DeltaLookup* table, unsigned int advance);
+	~Fragment();
     bool processBlock(const void* pDataBlock);
 
     void setBitPos(size_t pos) {mBitPos=pos;}
@@ -48,6 +50,7 @@ private:
     unsigned int mNumRound;
     unsigned int mAdvance;
     DeltaLookup* mTable;
+	t_mutex mMutex;
     size_t mBitPos;
     int mState;
 	int mCount;

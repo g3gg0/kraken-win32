@@ -43,10 +43,12 @@
 			/>
 			<Tool
 				Name="VCCLCompilerTool"
+				AdditionalOptions=""
+				Optimization="0"
 				FavorSizeOrSpeed="0"
 				WholeProgramOptimization="false"
-				AdditionalIncludeDirectories="compat-win32; Kraken"
-				PreprocessorDefinitions="WIN32;_DEBUG;_WINDOWS;_USRDLL;EMBED_FINDKC;_CRT_SECURE_NO_WARNINGS"
+				AdditionalIncludeDirectories="compat-win32; Kraken;$(INTEL_DEF_IA32_INSTALL_DIR)ipp\include;$(INTEL_DEF_IA32_INSTALL_DIR)TBB\Include"
+				PreprocessorDefinitions="WIN32;_DEBUG;_WINDOWS;_USRDLL;EMBED_FINDKC;_CRT_SECURE_NO_WARNINGS;_IPP_PARALLEL_DYNAMIC"
 				BasicRuntimeChecks="3"
 				RuntimeLibrary="3"
 				UsePrecompiledHeader="0"
@@ -67,6 +69,7 @@
 				Name="VCLinkerTool"
 				AdditionalDependencies="wsock32.lib"
 				LinkIncremental="2"
+				AdditionalLibraryDirectories="$(INTEL_DEF_IA32_INSTALL_DIR)ipp\lib\ia32;$(INTEL_DEF_IA32_INSTALL_DIR)TBB\Lib\ia32\vc9"
 				GenerateDebugInformation="true"
 				SubSystem="1"
 				HeapCommitSize="0"
@@ -355,11 +358,11 @@
 	</Configurations>
 	<References>
 		<ProjectReference
-			ReferencedProjectIdentifier="{B2A9871E-8028-4B4D-9763-7E1961256964}"
+			ReferencedProjectIdentifier="{18282DA9-0657-433E-A597-5E9B2166CAD2}"
 			CopyLocal="false"
 			CopyLocalDependencies="false"
 			CopyLocalSatelliteAssemblies="false"
-			RelativePathToProject=".\Kraken-win32\A5Cpu.vcproj"
+			RelativePathToProject=".\Kraken-win32\A5Cpu.icproj"
 		/>
 	</References>
 	<Files>
