@@ -5,6 +5,41 @@
 
 //#define MEMDEBUG
 
+#define STRINGIZE_WRAP(z) #z
+#define STRINGIZE(z) STRINGIZE_WRAP(z)
+
+/* generic architecture detection */
+#ifdef _WIN64
+#define COMPILER_ARCH "x64"
+#else
+#define COMPILER_ARCH "x32"
+#endif
+
+
+/* check for MSVC compiler version */
+#ifdef _MSC_VER
+#define COMPILER_VERSION "Microsoft Visual C++ v" STRINGIZE(_MSC_VER) " (" COMPILER_ARCH ")"
+#endif
+
+/* check for intel compiler version, this overrides MSVC macro intentionally! */
+#ifdef __INTEL_COMPILER
+#define COMPILER_VERSION "Intel Compiler v" STRINGIZE(__INTEL_COMPILER) " (" COMPILER_ARCH ")"
+#endif
+
+/* check for GCC compiler version */
+#ifdef __GNUC__
+#if (defined __GNUC_MINOR__) && (defined __GNUC_PATCHLEVEL__) && (defined __VERSION__)
+#define COMPILER_VERSION "GNU GCC v" STRINGIZE(__GNUC__) "." STRINGIZE(__GNUC_MINOR__) "." STRINGIZE(__GNUC_PATCHLEVEL__) " (" COMPILER_ARCH ")  '" __VERSION__ "'"
+#else
+#define COMPILER_VERSION "GNU GCC v" STRINGIZE(__GNUC__) ".?.? (" COMPILER_ARCH ")"
+#endif
+#endif
+
+/* none detected */
+#ifndef COMPILER_VERSION
+#define COMPILER_VERSION "unknown (" COMPILER_ARCH ")"
+#endif
+
 
 #ifdef WIN32
 #include <compat-win32.h>

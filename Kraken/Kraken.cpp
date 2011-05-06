@@ -15,12 +15,86 @@
 
 #include <Globals.h>
 
-
 /* g3gg0: hardcore-link to find_kc. someone should clean this up. */
 int find_kc(uint64_t stop, uint32_t pos, uint32_t framecount, uint32_t framecount2, char* testbits, unsigned char *keydata );
 
 Kraken* Kraken::mInstance = NULL;
 
+
+const char *AboutMessages[] =
+{
+		"----------------------------------------------------",
+		" Kraken server:         " KRAKEN_VERSION "",
+#if (defined __TIME__) && (defined __DATE__)
+		" Compiled at:           " __DATE__ " " __TIME__ "",
+#endif
+		" Compiler used:         " COMPILER_VERSION "",
+		"",
+		" Forked off from 'Kraken' by 'Frank A. Stevenson'",
+		" and highly customized by 'g3gg0.de' (a5@g3gg0.de)",
+		"",
+		" Thanks & Credits to:   | Frank A. Stevenson |",
+		"                        | Sascha Krissler    |",
+		"                        | Sylvain Munaut     |",
+		"----------------------------------------------------"
+};
+
+const char *HelpMessages[] =
+{
+	" Kraken-win32 Help:",
+	"",
+	" (<parm> are required parameters, [parm] are optional)",
+	"",
+	" - crack <bits1> [<COUNT1> <bits2> <COUNT2>]",
+	"    will try to find the Kc if bitsx and COUNTx are given.",
+	"    if just the bits are given and no COUNT etc, kraken",
+	"    will report the intermediate result as usual, but",
+	"    with some other formatting.",
+	"    e.g. 'crack 10101101...1101 12332 111001010...1101 12351'",
+	"         'crack 10101010...0001010101' (original kraken style)",
+	"",
+	" - cancel [id]",
+	"    cancel request given by id.",
+	"",
+	" - test",
+	"    queue the standard kraken testbits to run a crack.",
+	"",
+	" - perf {disk,gpu,cpu} [requests]",
+	"    queue requests to either HDD, GPU or CPU to test its speed.",
+	"    without parameter [reads] it will queue 2000/32000/1000 requests.",
+	"",
+	" - progress [id]",
+	"    show current progress of given job.",
+	"",
+	" - tables",
+	"    dump table information.",
+	"",
+	" - status",
+	"    short status message how many jobs are queued or running and how many",
+	"    keys (Kc) were found during this session.",
+	"",
+	" - jobs",
+	"    show details about all jobs currently running.",
+	"",
+	" - stats",
+	"    dump performance relevant stats.",
+	"",
+	" - about",
+	"    some details about this build.",
+	"",
+	" - suspend",
+	"    unload tables from RAM. they will be reloaded with the next request.",
+	"",
+	" - help",
+	"    you are reading this.",
+	"",
+	" - idle",
+	"    guess what!",
+	"",
+	" - quit (console only)",
+	"    will quit the server",
+	""
+};
 /**
  *  Create a singleton like instance of Kraken
  *  Loads all table indexes into memory
@@ -31,7 +105,7 @@ Kraken::Kraken(const char* config, int server_port) :
     assert (mInstance==NULL);
 	mRunning = false;
     mInstance = this;
-	mJobParallel = false;
+    mHalted = false;
 	mRequestId = 0;
 
 	mRequests = 0;
@@ -880,6 +954,8 @@ public:
  *   219 - response to "list"-command
  *   220 - response to "jobs"-command
  *   221 - response to "progress"-command
+ *   222 - response to "about"-command
+ *   224 - response to "help"-command
  *   
  */
 
@@ -911,11 +987,21 @@ void Kraken::serverCmd(int clientID, string cmd)
         uint64_t id = kraken->Crack(clientID, "001101110011000000001000001100011000100110110110011011010011110001101010100100101111111010111100000110101001101011");
 
 		sprintf(msg, "101 %d Request queued (%d already in queue).\r\n", (int)id, (int)queued );
-	}    
+	}
 	else if (!strncmp(command,"tables",6)) 
 	{
         /* Return a printed list of loaded tables */
         sprintf(msg,"219 %s",mInstance->mTableInfo.c_str());
+	}
+	else if (!strncmp(command,"halt",4)) 
+	{
+		kraken->mHalted = true;
+        sprintf(msg,"225 Server halted\r\n");
+	}
+	else if (!strncmp(command,"continue",4)) 
+	{
+		kraken->mHalted = false;
+        sprintf(msg,"225 Server running again\r\n");
 	}
     else if (!strncmp(command,"wnd_show",8))
 	{
@@ -946,6 +1032,30 @@ void Kraken::serverCmd(int clientID, string cmd)
 			sprintf(msg, "217 Released memory. Will refill when next statement gets processed.\r\n");
 		}
 	}
+    else if (!strncmp(command,"help",4))
+	{
+		int entries = sizeof(HelpMessages) / sizeof(const char*);
+
+		for(int pos = 0; pos < entries; pos++)
+		{
+			sprintf(msg, "223 %s\r\n", HelpMessages[pos] );
+			kraken->sendMessage(msg, clientID);
+		}
+
+		sprintf(msg, "223\r\n" );
+    }
+    else if (!strncmp(command,"about",5))
+	{
+		int entries = sizeof(AboutMessages) / sizeof(const char*);
+
+		for(int pos = 0; pos < entries; pos++)
+		{
+			sprintf(msg, "222 %s\r\n", AboutMessages[pos] );
+			kraken->sendMessage(msg, clientID);
+		}
+
+		sprintf(msg, "223\r\n" );
+	}
     else if (!strncmp(command,"status",6))
 	{
 		size_t queued = kraken->mJobs.size();
@@ -956,7 +1066,7 @@ void Kraken::serverCmd(int clientID, string cmd)
 			queued++;
 		}
 
-		sprintf(msg, "210 Kraken server (%i jobs in queue, %i processed, %i keys found, %i not found, tables currently %s)\r\n", (int)queued, kraken->mRequests, kraken->mFoundKc, kraken->mFailedKc, (kraken->mTablesLoaded?"in RAM":"not loaded"));
+		sprintf(msg, "210 Kraken server (%i jobs in queue, %i processed, %i keys found, %i not found, tables currently %s)'\r\n", (int)queued, kraken->mRequests, kraken->mFoundKc, kraken->mFailedKc, (kraken->mTablesLoaded?"in RAM":"not loaded"));
 	}
     else if (!strncmp(command,"stats",5))
 	{
@@ -994,25 +1104,33 @@ void Kraken::serverCmd(int clientID, string cmd)
 	}
     else if (!strncmp(command,"crack",5))
 	{
-        const char* ch = command + 5;
-        while (*ch && (*ch!='0') && (*ch!='1')) ch++;
-        size_t len = strlen(ch);
-        if (len>63)
+		if(kraken->mHalted)
 		{
-			size_t queued = kraken->mJobs.size();
-
-			/* already processing one request? */
-			if(kraken->mBusy)
-			{
-				queued++;
-			}
-
-            uint64_t id = kraken->Crack(clientID, ch);
-			sprintf(msg, "101 %d Request queued (%i already in queue).\r\n", (int)id, (int)queued );
-        }
+			sprintf(msg, "403 Forbidden. Server is currently halted.\r\n" );
+		}
 		else
 		{
-            sprintf(msg, "400 Bad request\r\n" );
+			const char* ch = command + 5;
+			while (*ch && (*ch!='0') && (*ch!='1')) ch++;
+			size_t len = strlen(ch);
+
+			if (len>63)
+			{
+				size_t queued = kraken->mJobs.size();
+
+				/* already processing one request? */
+				if(kraken->mBusy)
+				{
+					queued++;
+				}
+
+				uint64_t id = kraken->Crack(clientID, ch);
+				sprintf(msg, "101 %d Request queued (%i already in queue).\r\n", (int)id, (int)queued );
+			}
+			else
+			{
+				sprintf(msg, "400 Bad request\r\n" );
+			}
 		}
     }
     else if (!strncmp(command,"idle",4))
@@ -1024,22 +1142,45 @@ void Kraken::serverCmd(int clientID, string cmd)
 		const char *parm = command + 6;
 		int job_id = -1;
 
-		if(strlen(parm) > 0)
+		/* cancel all jobs */
+			/* not working :(
+		if(!strncmp(parm, " *", 2))
 		{
-			sscanf(parm, "%i", &job_id);
-		}
+			mutex_lock(&kraken->mMutex);
+			map<uint64_t,t_job>::iterator it = kraken->mJobs.begin();
+			
+			while (it!=kraken->mJobs.end()) 
+			{
+				char clientMsg[256];
 
-		if(job_id >= 0)
-		{
-			char clientMsg[256];
+				sprintf(clientMsg, "405 %i Your request was cancelled by client %i.\r\n", (int)(*it).first, clientID);
+				kraken->cancelJobFragments((*it).first, clientMsg);
+				it++;
+			}
 
-			sprintf(msg, "212 Cancelled job %i.\r\n", job_id);
-			sprintf(clientMsg, "405 %i Your request was cancelled by client %i.\r\n", job_id, clientID);
-			kraken->cancelJobFragments(job_id, clientMsg);
+			mutex_unlock(&kraken->mMutex);
+			sprintf(msg, "212 Cancelled all jobs.\r\n");
 		}
 		else
+		*/
 		{
-			sprintf(msg, "400 You have to specify a job to cancel.\r\n");
+			if(strlen(parm) > 0)
+			{
+				sscanf(parm, "%i", &job_id);
+			}
+
+			if(job_id >= 0)
+			{
+				char clientMsg[256];
+
+				sprintf(msg, "212 Cancelled job %i.\r\n", job_id);
+				sprintf(clientMsg, "405 %i Your request was cancelled by client %i.\r\n", job_id, clientID);
+				kraken->cancelJobFragments(job_id, clientMsg);
+			}
+			else
+			{
+				sprintf(msg, "400 You have to specify a job to cancel.\r\n");
+			}
 		}
     }
     else if (!strncmp(command,"fake",4))
@@ -1130,30 +1271,6 @@ void Kraken::serverCmd(int clientID, string cmd)
 			sprintf(msg, "400 No such job\r\n" );
 		}
     }
-    else if (!strncmp(command,"parallel",8))
-	{
-		if(kraken->mBusy)
-		{
-			sprintf(msg, "400 Mode switch not possible, kraken is busy.\r\n");
-		}
-		else
-		{
-			kraken->mJobParallel = true;
-			sprintf(msg, "221 Job processing now parallel\r\n" );
-		}
-    }
-    else if (!strncmp(command,"serial",6))
-	{
-		if(kraken->mBusy)
-		{
-			sprintf(msg, "400 Mode switch not possible, kraken is busy.\r\n");
-		}
-		else
-		{
-			kraken->mJobParallel = false;
-			sprintf(msg, "221 Job processing now serial\r\n" );
-		}
-    }
     else if (!strncmp(command,"quit",4))
 	{
 		if(clientID == -1)
@@ -1168,6 +1285,7 @@ void Kraken::serverCmd(int clientID, string cmd)
     }
     else if (!strncmp(command,"perf",4))
 	{
+		bool requests_disabled = true;
         const char* ch = command + 4;
         while (*ch && (*ch==' ')) ch++;
 
@@ -1177,7 +1295,7 @@ void Kraken::serverCmd(int clientID, string cmd)
 			ch = ch + 4;
 			while (*ch && (*ch==' ')) ch++;
 
-			if(*ch && sscanf(ch, "%lu", &seeks) != 1)
+			if(*ch && !requests_disabled && (sscanf(ch, "%lu", &seeks) != 1))
 			{
 	            sprintf(msg, "400 Bad request\r\n" );
 			}
@@ -1194,7 +1312,7 @@ void Kraken::serverCmd(int clientID, string cmd)
 			ch = ch + 3;
 			while (*ch && (*ch==' ')) ch++;
 
-			if(*ch && sscanf(ch, "%lu", &calcs) != 1)
+			if(*ch && !requests_disabled && sscanf(ch, "%lu", &calcs) != 1)
 			{
 	            sprintf(msg, "400 Bad request\r\n" );
 			}
@@ -1211,7 +1329,7 @@ void Kraken::serverCmd(int clientID, string cmd)
 			ch = ch + 3;
 			while (*ch && (*ch==' ')) ch++;
 
-			if(*ch && sscanf(ch, "%lu", &calcs) != 1)
+			if(*ch && !requests_disabled && sscanf(ch, "%lu", &calcs) != 1)
 			{
 	            sprintf(msg, "400 Bad request\r\n" );
 			}
@@ -1242,7 +1360,7 @@ void *Kraken::consoleThread(void *arg)
 
     printf("\n");
     printf("Started '"KRAKEN_VERSION"'\n");
-    printf("Commands are: crack test status stats fake cancel quit\n");
+    printf("Commands are: crack test status stats fake cancel about help quit\n");
     printf("\n");
 	printf("Kraken> ");
 
@@ -1290,15 +1408,22 @@ int main(int argc, char* argv[])
     Kraken kr(argv[1], server_port);
 
     while (kr.mRunning) {
-		bool busy = kr.Tick();
-
-		if(!busy)
+		if(!kr.mHalted)
 		{
-			usleep(1000);        
+			bool busy = kr.Tick();
+
+			if(!busy)
+			{
+				usleep(1000);        
+			}
+			else
+			{
+				usleep(0);
+			}
 		}
 		else
 		{
-			usleep(0);
+			usleep(1000);        
 		}
     }
 

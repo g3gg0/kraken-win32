@@ -358,11 +358,11 @@
 	</Configurations>
 	<References>
 		<ProjectReference
-			ReferencedProjectIdentifier="{18282DA9-0657-433E-A597-5E9B2166CAD2}"
+			ReferencedProjectIdentifier="{B2A9871E-8028-4B4D-9763-7E1961256964}"
 			CopyLocal="false"
 			CopyLocalDependencies="false"
 			CopyLocalSatelliteAssemblies="false"
-			RelativePathToProject=".\Kraken-win32\A5Cpu.icproj"
+			RelativePathToProject=".\Kraken-win32\A5Cpu.vcproj"
 		/>
 	</References>
 	<Files>

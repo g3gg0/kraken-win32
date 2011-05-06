@@ -58,6 +58,9 @@ public:
 	double mTotalSearchTime;
 	unsigned long mRuntime;
 
+	/* quick hack to disable processing */
+    bool mHalted;
+
 private:
     void removeFragment(Fragment* frag);
 
@@ -75,7 +78,6 @@ private:
 
     bool mUsingGpu;
     bool mBusy;
-	bool mJobParallel;
     struct timeval mStartTime;
     struct timeval mLastJobTime;
     ServerCore* mServer;
