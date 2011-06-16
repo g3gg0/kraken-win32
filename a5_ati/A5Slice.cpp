@@ -233,7 +233,14 @@ A5Slice::~A5Slice() {
 
 char* A5Slice::GetDeviceStats() 
 { 
-	sprintf(mDeviceStats, "Core %i: Average speed is %.3f jobs/s\r\n", mDevNo, (1.0f/mAvgProcessTime) );
+	if(mAvgProcessTime > 0)
+	{
+		sprintf(mDeviceStats, "Core %i: Average speed is %.3f jobs/s\r\n", mDevNo, (1.0f/mAvgProcessTime) );
+	}
+	else
+	{
+		sprintf(mDeviceStats, "Core %i: Average speed is <untested>\r\n", mDevNo );
+	}
 	return mDeviceStats; 
 }
 

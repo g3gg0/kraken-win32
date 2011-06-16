@@ -259,6 +259,7 @@ ClientConnection::ClientConnection(int fd) :
 #else
 	u_long val = 1;
 	ioctlsocket( mFd, FIONBIO, &val );
+    mBuffer = string("");
 #endif
 }
 

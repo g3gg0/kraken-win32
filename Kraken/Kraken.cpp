@@ -1285,7 +1285,7 @@ void Kraken::serverCmd(int clientID, string cmd)
     }
     else if (!strncmp(command,"perf",4))
 	{
-		bool requests_disabled = true;
+		bool requests_disabled = false;
         const char* ch = command + 4;
         while (*ch && (*ch==' ')) ch++;
 
