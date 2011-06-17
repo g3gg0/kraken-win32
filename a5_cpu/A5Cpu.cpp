@@ -690,5 +690,14 @@ void DLL_PUBLIC A5SpinLock(bool state)
 	}
 }
 
+char DLL_PUBLIC * A5GetDeviceStats()
+{
+	return NULL;
+}
+
+bool DLL_PUBLIC A5PipelineInfo(int &length)
+{
+    return false;
+}
 
 }

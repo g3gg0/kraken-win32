@@ -41,7 +41,7 @@
 			<Tool
 				Name="VCCLCompilerTool"
 				Optimization="0"
-				AdditionalIncludeDirectories="&quot;compat-win32&quot;;Kraken;&quot;C:\Program Files (x86)\ATI Stream\include&quot;"
+				AdditionalIncludeDirectories="&quot;compat-win32&quot;;Kraken;&quot;$(AMDAPPSDKROOT)\include\CAL&quot;"
 				PreprocessorDefinitions="WIN32;_DEBUG;_WINDOWS;_USRDLL;BUILDING_DLL"
 				MinimalRebuild="true"
 				BasicRuntimeChecks="3"
@@ -61,7 +61,7 @@
 			/>
 			<Tool
 				Name="VCLinkerTool"
-				AdditionalDependencies="&quot;C:\Program Files (x86)\ATI Stream\lib\aticalcl.lib&quot; &quot;C:\Program Files (x86)\ATI Stream\lib\aticalrt.lib&quot; "
+				AdditionalDependencies="&quot;$(AMDAPPSDKROOT)\lib\aticalcl.lib&quot; &quot;$(AMDAPPSDKROOT)\lib\aticalrt.lib&quot;"
 				OutputFile="$(OutDir)\A5Gpu.dll"
 				LinkIncremental="2"
 				GenerateDebugInformation="true"
@@ -119,7 +119,7 @@
 				InlineFunctionExpansion="2"
 				EnableIntrinsicFunctions="true"
 				FavorSizeOrSpeed="1"
-				AdditionalIncludeDirectories="&quot;compat-win32&quot;;Kraken;&quot;C:\Program Files (x86)\ATI Stream\include&quot;"
+				AdditionalIncludeDirectories="&quot;compat-win32&quot;;Kraken;&quot;$(AMDAPPSDKROOT)\include\CAL&quot;"
 				PreprocessorDefinitions="WIN32;NDEBUG;_WINDOWS;_USRDLL;BUILDING_DLL"
 				RuntimeLibrary="0"
 				BufferSecurityCheck="false"
@@ -141,7 +141,7 @@
 			/>
 			<Tool
 				Name="VCLinkerTool"
-				AdditionalDependencies="&quot;C:\Program Files (x86)\ATI Stream\lib\aticalcl.lib&quot; &quot;C:\Program Files (x86)\ATI Stream\lib\aticalrt.lib&quot;"
+				AdditionalDependencies="&quot;$(AMDAPPSDKROOT)\lib\aticalcl.lib&quot; &quot;$(AMDAPPSDKROOT)\lib\aticalrt.lib&quot;"
 				OutputFile="$(OutDir)\A5Gpu.dll"
 				LinkIncremental="1"
 				GenerateDebugInformation="true"

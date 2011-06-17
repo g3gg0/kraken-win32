@@ -77,11 +77,11 @@ public:
         bool idle;
     } JobPiece_s; 
 
-    int  Submit(uint64_t start_value, uint64_t target_value,
+    int  Submit(uint64_t job_id, uint64_t start_value, uint64_t target_value,
                 int32_t start_round, int32_t stop_round,
                 uint32_t advance, void* context);
 
-    bool PopResult(uint64_t& start_value, uint64_t& stop_value,
+    bool PopResult(uint64_t& job_id, uint64_t& start_value, uint64_t& stop_value,
                    int32_t& start_round, void** context);
 
     static uint64_t ReverseBits(uint64_t r);

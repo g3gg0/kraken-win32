@@ -84,7 +84,7 @@ A5Il::~A5Il()
     mutex_destroy(&mMutex);
 }
   
-int  A5Il::Submit(uint64_t start_value, uint64_t target,
+int  A5Il::Submit(uint64_t job_id, uint64_t start_value, uint64_t target,
                    int32_t start_round, int32_t stop_round,
                    uint32_t advance, void* context)
 {
@@ -98,7 +98,7 @@ int  A5Il::Submit(uint64_t start_value, uint64_t target,
 
 }
   
-bool A5Il::PopResult(uint64_t& start_value, uint64_t& stop_value,
+bool A5Il::PopResult(uint64_t& job_id, uint64_t& start_value, uint64_t& stop_value,
                       int32_t& start_round, void** context)
 {
     bool res = false;
@@ -297,33 +297,33 @@ bool DLL_PUBLIC A5Init(int max_rounds, int condition, uint32_t mask)
     return a5Instance->IsUsable();
 }
 
-int  DLL_PUBLIC A5Submit(uint64_t start_value, int32_t start_round,
+int  DLL_PUBLIC A5Submit(uint64_t job_id, uint64_t start_value, int32_t start_round,
                            uint32_t advance, void* context)
 {
     if (a5Instance) {
-        return a5Instance->Submit(start_value, 0ULL, start_round, -1,
+        return a5Instance->Submit(job_id, start_value, 0ULL, start_round, -1,
                                   advance, context);
     }
     return -1; /* Error */
 }
 
-int  DLL_PUBLIC A5KeySearch(uint64_t start_value, uint64_t target,
+int  DLL_PUBLIC A5KeySearch(uint64_t job_id, uint64_t start_value, uint64_t target,
                               int32_t start_round, int32_t stop_round,
                               uint32_t advance, void* context)
 {
     if (a5Instance) {
-        return a5Instance->Submit(start_value, target, start_round,
+        return a5Instance->Submit(job_id, start_value, target, start_round,
                                   stop_round, advance, context);
     }
     return -1; /* Error */
 }
 
 
-bool DLL_PUBLIC A5PopResult(uint64_t& start_value, uint64_t& stop_value,
+bool DLL_PUBLIC A5PopResult(uint64_t& job_id, uint64_t& start_value, uint64_t& stop_value,
                                int32_t& start_round, void** context)
 {
     if (a5Instance) {
-        return a5Instance->PopResult(start_value, stop_value, start_round,
+        return a5Instance->PopResult(job_id, start_value, stop_value, start_round,
                                      context);
     }
     return false; /* Nothing popped */ 
