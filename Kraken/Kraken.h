@@ -23,6 +23,8 @@
 
 using namespace std;
 
+void serverCmd(int clientID, string cmd);
+
 class Kraken {
 public:
     Kraken(const char* config, int server_port=0);
@@ -44,10 +46,11 @@ public:
 
     void reportFind(uint64_t result, Fragment *frag);
 	void sendMessage(char *msg, int client);
-    static void serverCmd(int clientID, string cmd);
+	void handleServerCmd(int clientID, string cmd);
     void showFragments(void);
 	static void *consoleThread(void *arg);
-	double Kraken::GetJobProgress(uint64_t jobId);
+	double GetJobProgress(uint64_t jobId);
+	bool LoadExtension(char *extension, char *parms);
 	bool mRunning;
 
 	/* statistics */
@@ -60,10 +63,21 @@ public:
 
 	/* quick hack to disable processing */
     bool mHalted;
+    void (*mWriteClient)(void *,int, char *);
+	void *mWriteClientCtx;
+	void (*mServerCmd)(int clientID, string cmd);
+
+	int jobCount() { return (int)mJobs.size(); }
+	int jobLoad() { return jobCount() * jobIncrement(); }
+	int jobIncrement() { return mJobIncrement; }
 
 private:
     void removeFragment(Fragment* frag);
 
+	bool mJobIncrementSet;
+	int mJobIncrement;
+
+    ServerCore* mServer;
     int mNumDevices;
     vector<NcqDevice*> mDevices;
     list< pair<unsigned int, DeltaLookup*> > mTables;
@@ -80,7 +94,6 @@ private:
     bool mBusy;
     struct timeval mStartTime;
     struct timeval mLastJobTime;
-    ServerCore* mServer;
 	int mFoundKeys;
 
 	unsigned int mRequestId;

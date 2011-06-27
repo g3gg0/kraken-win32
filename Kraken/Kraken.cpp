@@ -95,6 +95,48 @@ const char *HelpMessages[] =
 	"    will quit the server",
 	""
 };
+
+
+bool Kraken::LoadExtension(char *extension, char *parms)
+{	
+	char file[64];
+	bool (*fInit)(Kraken *, char *) = NULL;
+    void* lHandle = NULL;
+	
+	sprintf(file, "%s"DL_EXT, extension);
+	lHandle = DL_OPEN(file);
+
+#ifndef WIN32
+    char* lError = dlerror();
+    if (lError) {
+        fprintf(stderr, " [E] Error when opening A5Cpu"DL_EXT": %s\n", lError);
+        return false;
+    }
+#else
+    if (lHandle == NULL) {
+        fprintf(stderr, " [E] Error when opening %s: 0x%08X\n", file, GetLastError());
+        return false;
+    }
+#endif
+
+	fInit = (bool (*)(Kraken *, char *))DL_SYM(lHandle, "ext_init");
+#ifndef WIN32
+    char* lError = dlerror();
+    if (lError) {
+        fprintf(stderr, " [E] Error when loading symbol 'ext_init' from %s: %s\n", name, file, lError);
+        return false;
+    }
+#else
+    if (*fInit == NULL) {
+        fprintf(stderr, " [E] Error when loading symbol 'ext_init' from %s: 0x%08X\n", file, GetLastError());
+        return false;
+    }
+#endif
+
+	return fInit(this, parms);
+}
+
+
 /**
  *  Create a singleton like instance of Kraken
  *  Loads all table indexes into memory
@@ -112,16 +154,28 @@ Kraken::Kraken(const char* config, int server_port) :
 	mFoundKc = 0;
 	mFailedKc = 0;
 
+	mJobIncrementSet = false;
+	mJobIncrement = 180;
+
+	mWriteClient = NULL;
+	mWriteClientCtx = NULL;
+	mServerCmd = serverCmd;
+
 	printf("\r\n");
 	printf(" Starting Kraken\r\n");
 	printf("-----------------\r\n");
 	printf("\r\n");
 
+    mServer = NULL;
+    if (server_port) {
+        mServer = new ServerCore(server_port, serverCmd);
+    }
+
     string configFile = string(config)+DIR_SEP+string("tables.conf");
     FILE* fd = fopen(configFile.c_str(),"rb");
     if (fd==NULL) {
         printf(" [E] Could not find %s\n", configFile.c_str());
-        assert(0);
+        exit(0);
     }
     fseek(fd ,0 ,SEEK_END );
     int size = ftell(fd);
@@ -200,6 +254,14 @@ Kraken::Kraken(const char* config, int server_port) :
                 /* Make an entry in the active map */
                 mActiveMap[advance]=1;
             }
+            else if (strncmp(&pFile[pos],"Extension:",10)==0) {
+				char extension[64];
+
+                sscanf(&(pFile[pos+11]),"%s", extension);
+
+				LoadExtension(extension, &(pFile[pos+11 + strlen(extension) + 1]));
+
+            }
             pos += len;
         }
         pos++;
@@ -221,11 +283,6 @@ Kraken::Kraken(const char* config, int server_port) :
 	gettimeofday(&mLastJobTime, NULL);
 	mBusy = false;
 	mTablesLoaded = true;
-    mServer = NULL;
-    if (server_port) {
-        mServer = new ServerCore(server_port, serverCmd);
-    }
-
 	mRunning = true;
 	/* an extra thread for console */
     pthread_create(&mConsoleThread, NULL, Kraken::consoleThread, (void*)this);
@@ -617,6 +674,13 @@ void Kraken::sendJobResult(uint64_t job_id)
 	{
 		mFailedKc++;
 		snprintf(msg, 128, "404 %i Key not found (%s)\r\n", (int)job_id, details);
+
+		/* only update on full table scans */
+		if(!mJobIncrementSet)
+		{
+			mJobIncrementSet = true;
+			mJobIncrement = (int)(diff/1000000);
+		}
 	}
 	else
 	{
@@ -741,7 +805,12 @@ void Kraken::sendMessage(char *msg, int client)
 
 	if(client != -1)
 	{
-		if(mServer)
+		if(mWriteClient)
+		{
+			_heapchk();
+			mWriteClient(mWriteClientCtx, client, msg);
+		}
+		else if(mServer)
 		{
 			mServer->Write(client, msg);
 		}
@@ -962,9 +1031,15 @@ public:
 /**
  *  Recieve and parse commands from clients
  */
-void Kraken::serverCmd(int clientID, string cmd)
+void serverCmd(int clientID, string cmd)
 {
 	Kraken* kraken = Kraken::getInstance();
+
+	kraken->handleServerCmd(clientID, cmd);
+}
+
+void Kraken::handleServerCmd(int clientID, string cmd)
+{
     const char* command = cmd.c_str();
 	char msg[512];
 
@@ -975,16 +1050,16 @@ void Kraken::serverCmd(int clientID, string cmd)
 
     if (strncmp(command,"test",4)==0)
 	{
-		size_t queued = kraken->mJobs.size();
+		size_t queued = mJobs.size();
 
 		/* already processing one request? */
-		if(kraken->mBusy)
+		if(mBusy)
 		{
 			queued++;
 		}
 
         // Test frame 998
-        uint64_t id = kraken->Crack(clientID, "001101110011000000001000001100011000100110110110011011010011110001101010100100101111111010111100000110101001101011");
+        uint64_t id = Crack(clientID, "001101110011000000001000001100011000100110110110011011010011110001101010100100101111111010111100000110101001101011");
 
 		sprintf(msg, "101 %d Request queued (%d already in queue).\r\n", (int)id, (int)queued );
 	}
@@ -995,12 +1070,12 @@ void Kraken::serverCmd(int clientID, string cmd)
 	}
 	else if (!strncmp(command,"halt",4)) 
 	{
-		kraken->mHalted = true;
+		mHalted = true;
         sprintf(msg,"225 Server halted\r\n");
 	}
 	else if (!strncmp(command,"continue",4)) 
 	{
-		kraken->mHalted = false;
+		mHalted = false;
         sprintf(msg,"225 Server running again\r\n");
 	}
     else if (!strncmp(command,"wnd_show",8))
@@ -1022,13 +1097,13 @@ void Kraken::serverCmd(int clientID, string cmd)
     else if (!strncmp(command,"suspend",7))
 	{
 		/* already processing one request? */
-		if(kraken->mBusy)
+		if(mBusy)
 		{
 			sprintf(msg, "400 Releasing memory not possible, kraken is busy.\r\n");
 		}
 		else
 		{
-			kraken->UnloadTables();
+			UnloadTables();
 			sprintf(msg, "217 Released memory. Will refill when next statement gets processed.\r\n");
 		}
 	}
@@ -1039,7 +1114,7 @@ void Kraken::serverCmd(int clientID, string cmd)
 		for(int pos = 0; pos < entries; pos++)
 		{
 			sprintf(msg, "223 %s\r\n", HelpMessages[pos] );
-			kraken->sendMessage(msg, clientID);
+			sendMessage(msg, clientID);
 		}
 
 		sprintf(msg, "223\r\n" );
@@ -1051,22 +1126,22 @@ void Kraken::serverCmd(int clientID, string cmd)
 		for(int pos = 0; pos < entries; pos++)
 		{
 			sprintf(msg, "222 %s\r\n", AboutMessages[pos] );
-			kraken->sendMessage(msg, clientID);
+			sendMessage(msg, clientID);
 		}
 
 		sprintf(msg, "223\r\n" );
 	}
     else if (!strncmp(command,"status",6))
 	{
-		size_t queued = kraken->mJobs.size();
+		size_t queued = mJobs.size();
 
 		/* already processing one request? */
-		if(kraken->mBusy)
+		if(mBusy)
 		{
 			queued++;
 		}
 
-		sprintf(msg, "210 Kraken server (%i jobs in queue, %i processed, %i keys found, %i not found, tables currently %s)'\r\n", (int)queued, kraken->mRequests, kraken->mFoundKc, kraken->mFailedKc, (kraken->mTablesLoaded?"in RAM":"not loaded"));
+		sprintf(msg, "210 Kraken server (%i jobs in queue, %i processed, %i keys found, %i not found, tables currently %s)'\r\n", (int)queued, mRequests, mFoundKc, mFailedKc, (mTablesLoaded?"in RAM":"not loaded"));
 	}
     else if (!strncmp(command,"stats",5))
 	{
@@ -1075,9 +1150,9 @@ void Kraken::serverCmd(int clientID, string cmd)
 		
 		strcpy(buffer, "214 ");
 
-		for (int i=0; i<kraken->mNumDevices; i++) {
-			strcat(buffer,kraken->mDevices[i]->GetDeviceStats());
-			if((i + 1) < kraken->mNumDevices)
+		for (int i=0; i<mNumDevices; i++) {
+			strcat(buffer,mDevices[i]->GetDeviceStats());
+			if((i + 1) < mNumDevices)
 			{
 				strcat(buffer," - ");
 			}
@@ -1104,7 +1179,7 @@ void Kraken::serverCmd(int clientID, string cmd)
 	}
     else if (!strncmp(command,"crack",5))
 	{
-		if(kraken->mHalted)
+		if(mHalted)
 		{
 			sprintf(msg, "403 Forbidden. Server is currently halted.\r\n" );
 		}
@@ -1116,15 +1191,15 @@ void Kraken::serverCmd(int clientID, string cmd)
 
 			if (len>63)
 			{
-				size_t queued = kraken->mJobs.size();
+				size_t queued = mJobs.size();
 
 				/* already processing one request? */
-				if(kraken->mBusy)
+				if(mBusy)
 				{
 					queued++;
 				}
 
-				uint64_t id = kraken->Crack(clientID, ch);
+				uint64_t id = Crack(clientID, ch);
 				sprintf(msg, "101 %d Request queued (%i already in queue).\r\n", (int)id, (int)queued );
 			}
 			else
@@ -1146,19 +1221,19 @@ void Kraken::serverCmd(int clientID, string cmd)
 			/* not working :(
 		if(!strncmp(parm, " *", 2))
 		{
-			mutex_lock(&kraken->mMutex);
-			map<uint64_t,t_job>::iterator it = kraken->mJobs.begin();
+			mutex_lock(&mMutex);
+			map<uint64_t,t_job>::iterator it = mJobs.begin();
 			
-			while (it!=kraken->mJobs.end()) 
+			while (it!=mJobs.end()) 
 			{
 				char clientMsg[256];
 
 				sprintf(clientMsg, "405 %i Your request was cancelled by client %i.\r\n", (int)(*it).first, clientID);
-				kraken->cancelJobFragments((*it).first, clientMsg);
+				cancelJobFragments((*it).first, clientMsg);
 				it++;
 			}
 
-			mutex_unlock(&kraken->mMutex);
+			mutex_unlock(&mMutex);
 			sprintf(msg, "212 Cancelled all jobs.\r\n");
 		}
 		else
@@ -1175,7 +1250,7 @@ void Kraken::serverCmd(int clientID, string cmd)
 
 				sprintf(msg, "212 Cancelled job %i.\r\n", job_id);
 				sprintf(clientMsg, "405 %i Your request was cancelled by client %i.\r\n", job_id, clientID);
-				kraken->cancelJobFragments(job_id, clientMsg);
+				cancelJobFragments(job_id, clientMsg);
 			}
 			else
 			{
@@ -1189,35 +1264,35 @@ void Kraken::serverCmd(int clientID, string cmd)
 		/*
 		sprintf(msg, "213 Faking result of currently running request (if any) and will report key EEEE[...]EE\r\n");
 
-		memset(kraken->mKeyResult, 0xEE, 8);
-		kraken->mFoundKeys = 1;
-        kraken->clearFragments();
+		memset(mKeyResult, 0xEE, 8);
+		mFoundKeys = 1;
+        clearFragments();
 		*/
     }
     else if (!strncmp(command,"jobs",4))
 	{
-		mutex_lock(&kraken->mMutex);
-		map<uint64_t,t_job>::iterator it = kraken->mJobs.begin();
+		mutex_lock(&mMutex);
+		map<uint64_t,t_job>::iterator it = mJobs.begin();
 		sprintf(msg, "220 Active jobs:\r\n");
-		kraken->sendMessage(msg, clientID);
+		sendMessage(msg, clientID);
 
 		unsigned int histogram[6] = { 0, 0, 0, 0, 0, 0 };
 		int total = 0;
 
-		while (it!=kraken->mJobs.end()) 
+		while (it!=mJobs.end()) 
 		{
 			uint64_t job_id = (*it).first;
-			float progress = 100.0f - ((100.0f * kraken->mJobs[job_id].fragments.size()) / kraken->mJobs[job_id].max_fragments);
+			float progress = 100.0f - ((100.0f * mJobs[job_id].fragments.size()) / mJobs[job_id].max_fragments);
 			struct timeval tv;
 			gettimeofday(&tv, NULL);
-			unsigned long diff = 1000000 * (tv.tv_sec - kraken->mJobs[job_id].start_time.tv_sec);
-			diff += tv.tv_usec - kraken->mJobs[job_id].start_time.tv_usec;
+			unsigned long diff = 1000000 * (tv.tv_sec - mJobs[job_id].start_time.tv_sec);
+			diff += tv.tv_usec - mJobs[job_id].start_time.tv_usec;
 
 			sprintf(msg, "220    %4i: active %i sec, progress %3.2f %%\r\n", (int)(*it).first, (int)(diff/1000000), progress );
-			kraken->sendMessage(msg, clientID);
+			sendMessage(msg, clientID);
 
-			map<Fragment*,int>::iterator it2 = kraken->mJobs[job_id].fragments.begin();
-			while (it2!=kraken->mJobs[job_id].fragments.end()) {
+			map<Fragment*,int>::iterator it2 = mJobs[job_id].fragments.begin();
+			while (it2!=mJobs[job_id].fragments.end()) {
 				int state = (*it2).first->getState();
 				if ((state>=0)&&(state<6)) {
 					histogram[state]++;
@@ -1229,24 +1304,24 @@ void Kraken::serverCmd(int clientID, string cmd)
 			it++;
 		}
 
-		mutex_unlock(&kraken->mMutex);
+		mutex_unlock(&mMutex);
 
 		sprintf(msg, "220\r\n");
-		kraken->sendMessage(msg, clientID);
+		sendMessage(msg, clientID);
 		sprintf(msg, "220 Work units:  %6d\r\n", total);
-		kraken->sendMessage(msg, clientID);
+		sendMessage(msg, clientID);
 		sprintf(msg, "220       init:  %6d\r\n", histogram[0]);
-		kraken->sendMessage(msg, clientID);
+		sendMessage(msg, clientID);
 		sprintf(msg, "220        HDD:  %6d\r\n", histogram[1]);
-		kraken->sendMessage(msg, clientID);
+		sendMessage(msg, clientID);
 		sprintf(msg, "220        CPU:  %6d\r\n", histogram[2]);
-		kraken->sendMessage(msg, clientID);
+		sendMessage(msg, clientID);
 		sprintf(msg, "220        GPU:  %6d\r\n", histogram[3]);
-		kraken->sendMessage(msg, clientID);
+		sendMessage(msg, clientID);
 		sprintf(msg, "220       done:  %6d\r\n", histogram[4]);
-		kraken->sendMessage(msg, clientID);
+		sendMessage(msg, clientID);
 		sprintf(msg, "220       fail:  %6d\r\n", histogram[5]);
-		kraken->sendMessage(msg, clientID);
+		sendMessage(msg, clientID);
 		
 		sprintf(msg, "220\r\n");
     }
@@ -1260,7 +1335,7 @@ void Kraken::serverCmd(int clientID, string cmd)
 			sscanf(parm, "%i", &job_id);
 		}
 
-		double progress = kraken->GetJobProgress(job_id);
+		double progress = GetJobProgress(job_id);
 
 		if(progress >= 0)
 		{
@@ -1276,7 +1351,7 @@ void Kraken::serverCmd(int clientID, string cmd)
 		if(clientID == -1)
 		{
 			sprintf(msg, "666 says goodbye\r\n");
-			kraken->mRunning = false;
+			mRunning = false;
 		}
 		else
 		{
@@ -1302,7 +1377,7 @@ void Kraken::serverCmd(int clientID, string cmd)
 			else
 			{
 				sprintf(msg, "215 Starting disk performance test. (queueing %lu random reads)\r\n", seeks );
-				KrakenPerfDisk *perf = new KrakenPerfDisk(kraken, clientID, kraken->mDevices);
+				KrakenPerfDisk *perf = new KrakenPerfDisk(this, clientID, mDevices);
 				perf->Start(seeks);
 			}
 		}
@@ -1319,7 +1394,7 @@ void Kraken::serverCmd(int clientID, string cmd)
 			else
 			{
 				sprintf(msg, "215 Starting GPU performance test. (queueing %lu nullvalue-calcs)\r\n", calcs );
-				KrakenPerfA5 *perf = new KrakenPerfA5(kraken, clientID, true);
+				KrakenPerfA5 *perf = new KrakenPerfA5(this, clientID, true);
 				perf->Start(calcs);
 			}
 		}
@@ -1336,7 +1411,7 @@ void Kraken::serverCmd(int clientID, string cmd)
 			else
 			{
 				sprintf(msg, "215 Starting CPU performance test. (queueing %lu nullvalue-calcs)\r\n", calcs );
-				KrakenPerfA5 *perf = new KrakenPerfA5(kraken, clientID, false);
+				KrakenPerfA5 *perf = new KrakenPerfA5(this, clientID, false);
 				perf->Start(calcs);
 			}
 		}
@@ -1350,7 +1425,7 @@ void Kraken::serverCmd(int clientID, string cmd)
         sprintf(msg, "400 Unknown request\r\n" );
 	}
 
-	kraken->sendMessage(msg, clientID);
+	sendMessage(msg, clientID);
 }
 
 void *Kraken::consoleThread(void *arg)
@@ -1386,7 +1461,7 @@ void *Kraken::consoleThread(void *arg)
 		mutex_unlock(&kraken->mConsoleMutex);
 
 		/* process command */
-		kraken->serverCmd(-1, command);
+		kraken->handleServerCmd(-1, command);
 		usleep(1000);
 	}
 

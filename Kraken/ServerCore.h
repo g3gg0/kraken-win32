@@ -33,6 +33,7 @@ private:
 
 class ServerCore {
 public:
+    ServerCore();
     ServerCore(int,dispatch);
     ~ServerCore();
 
