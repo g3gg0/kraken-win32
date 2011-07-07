@@ -37,7 +37,7 @@ public:
     ServerCore(int,dispatch);
     ~ServerCore();
 
-    void Write(int, string);
+    bool Write(int, string);
     void Broadcast(string);
 	void Shutdown();
 

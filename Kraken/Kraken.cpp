@@ -805,15 +805,18 @@ void Kraken::sendMessage(char *msg, int client)
 
 	if(client != -1)
 	{
-		if(mWriteClient)
+		bool handled = false;
+
+		if(!handled && mWriteClient)
 		{
-			_heapchk();
-			mWriteClient(mWriteClientCtx, client, msg);
+			handled = mWriteClient(mWriteClientCtx, client, msg);
 		}
-		else if(mServer)
+		
+		if(!handled && mServer)
 		{
-			mServer->Write(client, msg);
+			handled = mServer->Write(client, msg);
 		}
+
 		printf(" [i] [client:%i] %s", client, msg);
 	}
 	else
@@ -1029,7 +1032,7 @@ public:
  */
 
 /**
- *  Recieve and parse commands from clients
+ *  Receive and parse commands from clients
  */
 void serverCmd(int clientID, string cmd)
 {

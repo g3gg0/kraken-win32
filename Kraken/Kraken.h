@@ -63,7 +63,7 @@ public:
 
 	/* quick hack to disable processing */
     bool mHalted;
-    void (*mWriteClient)(void *,int, char *);
+    bool (*mWriteClient)(void *,int, char *);
 	void *mWriteClientCtx;
 	void (*mServerCmd)(int clientID, string cmd);
 

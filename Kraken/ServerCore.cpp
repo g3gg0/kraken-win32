@@ -219,12 +219,19 @@ void ServerCore::Serve()
 }
 
 
-void ServerCore::Write(int clientId, string data)
+bool ServerCore::Write(int clientId, string data)
 {
+	if (mClientMap.find(clientId) == mClientMap.end()) 
+	{
+		return false;
+	}
+
     mutex_lock(&mQueueMutex);
     mMessageQueue.push(data);
     mClientQueue.push(clientId);
     mutex_unlock(&mQueueMutex);
+
+	return true;
 }
 
 void ServerCore::Broadcast(string data)
@@ -289,14 +296,11 @@ int ClientConnection::Write(string dat)
 
 int ClientConnection::Read(string &data)
 {
-    char buffer[BUFFER_SIZE];
     int bytes_read;
     int total_count = 0;
-    char *ch;
     char last_read = 0;
     bool newline = false;
 
-    ch = buffer;
     while (total_count < BUFFER_SIZE - 1) {
 #ifndef WIN32
         bytes_read = read(mFd, &last_read, 1);
@@ -331,17 +335,13 @@ int ClientConnection::Read(string &data)
             break;
         }
 
-        *ch++ = last_read;
+		mBuffer.append(1, last_read);
         total_count++;
     }
 
-    *ch = '\0';
-
-    mBuffer = mBuffer + string(buffer);
-
     if (newline) {
         /* newline read */
-        data = mBuffer;
+		data.assign(mBuffer);
         mBuffer = string("");
 		return 1;
     }
