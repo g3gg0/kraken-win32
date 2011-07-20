@@ -23,7 +23,7 @@
 
 using namespace std;
 
-void serverCmd(int clientID, string cmd);
+void serverCmd(int clientID, char *cmd);
 
 class Kraken {
 public:
@@ -46,7 +46,7 @@ public:
 
     void reportFind(uint64_t result, Fragment *frag);
 	void sendMessage(char *msg, int client);
-	void handleServerCmd(int clientID, string cmd);
+	void handleServerCmd(int clientID, char *cmd);
     void showFragments(void);
 	static void *consoleThread(void *arg);
 	double GetJobProgress(uint64_t jobId);
@@ -65,7 +65,7 @@ public:
     bool mHalted;
     bool (*mWriteClient)(void *,int, char *);
 	void *mWriteClientCtx;
-	void (*mServerCmd)(int clientID, string cmd);
+	void (*mServerCmd)(int clientID, char *cmd);
 
 	int jobCount() { return (int)mJobs.size(); }
 	int jobLoad() { return jobCount() * jobIncrement(); }

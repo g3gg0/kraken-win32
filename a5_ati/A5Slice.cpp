@@ -255,7 +255,6 @@ void A5Slice::Clear()
         mJobs[i].idle = true;
     }
     mFree = jobs - 1;
-
 }
 
 void A5Slice::Cancel(uint64_t job_id) 

@@ -207,7 +207,7 @@ void ServerCore::Serve()
                     }
                     if (status>0) {
                         if (mDispatch) {
-                            mDispatch((*it).first,data);
+							mDispatch((*it).first,(char*)data.c_str());
                         }
                     }
                 }

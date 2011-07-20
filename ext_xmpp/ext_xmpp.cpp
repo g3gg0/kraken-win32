@@ -2,6 +2,7 @@
 
 #include "ext_xmpp.h"
 
+#include "Globals.h"
 
 extern "C"
 {
@@ -14,6 +15,7 @@ extern "C"
 
 	int send_ping(xmpp_conn_t * const conn, xmpp_ctx_t *ctx, const char *from)
 	{
+		MEMCHECK();
 		xmpp_stanza_t *iq;
 		xmpp_stanza_t *ping;
 
@@ -32,11 +34,14 @@ extern "C"
 		xmpp_send(conn, iq);
 		xmpp_stanza_release(iq);
 
+		MEMCHECK();
 		return 1;
 	}
 
 	int send_message(xmpp_conn_t * const conn, xmpp_ctx_t *ctx, const char *to, const char *msg, const char *type)
 	{
+		MEMCHECK();
+
 		xmpp_stanza_t *reply;
 		xmpp_stanza_t *text;
 		xmpp_stanza_t *body;
@@ -57,11 +62,13 @@ extern "C"
 		xmpp_send(conn, reply);
 		xmpp_stanza_release(reply);
 
+		MEMCHECK();
 		return 1;
 	}
 
 	int version_handler(xmpp_conn_t * const conn, xmpp_stanza_t * const stanza, void * const userdata)
 	{
+		MEMCHECK();
 		xmpp_stanza_t *reply, *query, *name, *version, *text;
 		char *ns;
 		xmpp_ctx_t *ctx = (xmpp_ctx_t*)userdata;
@@ -102,11 +109,13 @@ extern "C"
 		xmpp_send(conn, reply);
 		xmpp_stanza_release(reply);
 
+		MEMCHECK();
 		return 1;
 	}
 
 	int presence_handler(xmpp_conn_t * const conn, xmpp_stanza_t * const stanza, void * const userdata)
 	{
+		MEMCHECK();
 		xmpp_ctx_t *ctx = (xmpp_ctx_t*)userdata;
 
 		char *from = xmpp_stanza_get_attribute(stanza, "from");
@@ -115,12 +124,14 @@ extern "C"
 
 		Core->handlePresence(from, type, ctx);
 
+		MEMCHECK();
 		return 1;
 	}
 
 
 	int message_handler(xmpp_conn_t * const conn, xmpp_stanza_t * const stanza, void * const userdata)
 	{
+		MEMCHECK();
 		char *intext;
 		xmpp_ctx_t *ctx = (xmpp_ctx_t*)userdata;
 
@@ -141,11 +152,13 @@ extern "C"
 		intext = xmpp_stanza_get_text(xmpp_stanza_get_child_by_name(stanza, "body"));
 
 		Core->handleMessage(from, intext, type, ctx);
+		MEMCHECK();
 		return 1;
 	}
 
 	void send_presence(xmpp_conn_t * const conn, xmpp_ctx_t *ctx, char *from, char *to)
 	{
+		MEMCHECK();
 		xmpp_stanza_t* pres;
 
 		/* Send initial <presence/> so that we appear online to contacts */
@@ -164,6 +177,7 @@ extern "C"
 
 		xmpp_send(conn, pres);
 		xmpp_stanza_release(pres);
+		MEMCHECK();
 	}
 
 	/* define a handler for connection events */
@@ -198,7 +212,7 @@ extern "C"
 
 XMPPServerCore::XMPPServerCore(Kraken *instance, char *parms) 
 {
-	currentId = 0x40000000;
+	currentId = 10000000;
 	krakenInstance = instance;
 	parameters = parms;
 
@@ -254,10 +268,44 @@ bool XMPPServerCore::writeClient(int client, string msg)
 	if(contactIdMapRev.find(client) != contactIdMapRev.end())
 	{
 		if(contactSessionMap.find(contactIdMapRev[client]) != contactSessionMap.end())
-		{
-			string escaped = msg;
-			escaped = encodeForXml(msg);
-			send_message(connection, contactSessionMap[contactIdMapRev[client]], contactIdMapRev[client].c_str(), escaped.c_str(), "chat");
+		{			
+			char *message = strdup(msg.c_str());
+			char *ptr = message;
+
+			/* splitting string on \r and \n */
+			while(ptr && (*ptr != '\000'))
+			{
+				char *next = strchr(ptr, '\r');
+
+				/* found \r ? */
+				if(next != NULL)
+				{
+					*next = '\000';
+					next++;
+					*next = '\000';
+					next++;
+				}
+				else
+				{
+					/* look for \n */
+					next = strchr(ptr, '\n');
+					if(next != NULL)
+					{
+						*next = '\000';
+						next++;
+					}
+				}
+
+				/* escape and send */
+				string escaped = encodeForXml(string(ptr));
+				//printf( "> '%s'\r\n", escaped.c_str());
+				send_message(connection, contactSessionMap[contactIdMapRev[client]], contactIdMapRev[client].c_str(), escaped.c_str(), "chat");
+
+				ptr = next;
+			}
+
+
+			free(message);
 
 			return true;
 		}
@@ -275,9 +323,11 @@ void XMPPServerCore::start()
 	char auth[192];
 	int debug = 0;
 
-	if(sscanf(parameters, "j=%127s p=%127s a=%127s n=%127s o=%127s d=%i", uname, pass, auth, nick, own, debug) < 5)
+	int found = sscanf(parameters, "j=%127s p=%127s a=%127s n=%127s o=%127s d=%u", uname, pass, auth, nick, own, &debug);
+
+	if(found < 5)
 	{
-		printf( " [E] XMPP NOT connected. Please specify username and pass as parameters\n" );
+		printf( " [E] XMPP NOT started. Please specify username and pass as parameters. (%i)\n", found );
 		printf( " [E] in format j=[jabber-id] p=[password] a=[auth token] n=[nick] o=[owner] d=[debuglevel]\n" );
 		return;
 	}
@@ -396,20 +446,28 @@ void XMPPServerCore::handleMessage( char *from, char *msg, char *type, xmpp_ctx_
 			}
 		}
 
-		if(!strcmp(type, "chat"))
+		if(!strcmp(type, "chat") || !strcmp(type, "normal"))
 		{
 			//printf(" [i] XMPP: Message from: %s, msg: %s\n", from, msg);
 			if(contactIdMap.find(from) != contactIdMap.end())
 			{
-				/* not authorized yet? */
-				if(!contactAuthMap[from])
+				/* received auth command? */
+				if(!strncmp(msg, "auth", 4))
 				{
-					char expected[128];
-					sprintf(expected, "auth %s", authToken);
-
-					if(!strcmp(expected, msg))
+					/* not authorized yet? */
+					if(!contactAuthMap[from])
 					{
-						contactAuthMap[from] = true;
+						char expected[128];
+						sprintf(expected, "auth %s", authToken);
+
+						if(!strcmp(expected, msg))
+						{
+							contactAuthMap[from] = true;
+						}
+					}
+					
+					if(contactAuthMap[from])
+					{
 						send_message(connection, session, from, "201 Welcome to Kraken-win32 XMPP/Jabber remote", "chat");
 					}
 					else
@@ -419,8 +477,15 @@ void XMPPServerCore::handleMessage( char *from, char *msg, char *type, xmpp_ctx_
 				}
 				else
 				{
-					int id = contactIdMap[from];
-					krakenInstance->mServerCmd(id, msg);
+					if(contactAuthMap[from])
+					{
+						int id = contactIdMap[from];
+						krakenInstance->mServerCmd(id, msg);
+					}
+					else
+					{
+						send_message(connection, session, from, "401 You are not authorized", "chat");
+					}
 				}
 			}
 		}

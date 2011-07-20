@@ -381,10 +381,13 @@ bool AtiA5::Init(void)
 			}
 			else
 			{
+				mSlices[usedSlices] = NULL;
 				delete slice;
 			}
 		}
 	}
+
+	mNumSlices = usedSlices;
 
 	/* none of the cores did set up properly */
 	if(usedSlices == 0)

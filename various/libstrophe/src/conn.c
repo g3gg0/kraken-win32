@@ -472,8 +472,10 @@ void conn_disconnect(xmpp_conn_t * const conn)
     sock_close(conn->sock);
 
     /* fire off connection handler */
-    conn->conn_handler(conn, XMPP_CONN_DISCONNECT, conn->error,
-		       conn->stream_error, conn->userdata);
+	if(conn->conn_handler != NULL)
+	{
+		conn->conn_handler(conn, XMPP_CONN_DISCONNECT, conn->error, conn->stream_error, conn->userdata);
+	}
 }
 
 /* prepares a parser reset.  this is called from handlers. we can't

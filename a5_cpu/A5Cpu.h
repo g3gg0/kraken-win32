@@ -50,7 +50,6 @@
 #include <pthread.h>
 #include <stdint.h>
 #include "Advance.h"
-#include "Globals.h"
 #include <map>
 #include <queue>
 #include <deque>

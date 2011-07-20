@@ -4,7 +4,6 @@
 #include <stdint.h>
 #include <queue>
 
-#include "Globals.h"
 #include <pthread.h>
 #include <semaphore.h>
 #include <list>

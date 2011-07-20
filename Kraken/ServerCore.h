@@ -14,7 +14,7 @@
 
 using namespace std;
 
-typedef void (*dispatch)(int, std::string);
+typedef void (*dispatch)(int, char*);
 
 class ClientConnection {
 public:

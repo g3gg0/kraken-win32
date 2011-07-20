@@ -1010,6 +1010,7 @@ public:
  *   200 [id] [key] - Kc for [id] was found
  *
  *   400 - invalid request
+ *   401 - not authorized
  *   405 - not allowed
  *   404 [id] - no key found for this request
  *   405 [id] - job was cancelled
@@ -1034,19 +1035,18 @@ public:
 /**
  *  Receive and parse commands from clients
  */
-void serverCmd(int clientID, string cmd)
+void serverCmd(int clientID, char *cmd)
 {
 	Kraken* kraken = Kraken::getInstance();
 
 	kraken->handleServerCmd(clientID, cmd);
 }
 
-void Kraken::handleServerCmd(int clientID, string cmd)
+void Kraken::handleServerCmd(int clientID, char * command)
 {
-    const char* command = cmd.c_str();
 	char msg[512];
 
-	if(cmd.length() <= 2)
+	if(strlen(command) <= 2)
 	{
 		return;
 	}
@@ -1342,11 +1342,11 @@ void Kraken::handleServerCmd(int clientID, string cmd)
 
 		if(progress >= 0)
 		{
-			sprintf(msg, "221 Progress of job %i is %2.2f %%\r\n", job_id, progress );
+			sprintf(msg, "221 %i Progress of job is %2.2f %%\r\n", job_id, progress );
 		}
 		else
 		{
-			sprintf(msg, "400 No such job\r\n" );
+			sprintf(msg, "221 %i No such job\r\n", job_id );
 		}
     }
     else if (!strncmp(command,"quit",4))
