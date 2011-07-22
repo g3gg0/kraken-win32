@@ -125,7 +125,7 @@ bool Kraken::LoadExtension(char *extension, char *parms)
 #ifndef WIN32
     lError = dlerror();
     if (lError) {
-        fprintf(stderr, " [E] Error when loading symbol 'ext_init' from %s: %s%s\n", name, file, lError);
+        fprintf(stderr, " [E] Error when loading symbol 'ext_init' from %s: %s%s\n", file, file, lError);
         return false;
     }
 #else
