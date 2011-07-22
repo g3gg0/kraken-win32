@@ -597,7 +597,7 @@ bool Kraken::Tick()
 	/* free the fragments that are queued for deletion */
     mutex_lock(&mWasteMutex);
 
-	map<Fragment*,int>::iterator fi = mWastedFragments.begin();
+	map<Fragment*,uint64_t>::iterator fi = mWastedFragments.begin();
 	while(fi != mWastedFragments.end())
 	{
 		removeFragment(fi->first);
@@ -649,7 +649,7 @@ void Kraken::queueFragmentRemoval(Fragment *frag, bool table_hit, uint64_t resul
 	if(!deleted)
 	{
 		mutex_lock(&mWasteMutex);
-		mWastedFragments[frag] = (int)frag->getJobNum();
+		mWastedFragments[frag] = frag->getJobNum();
 		mutex_unlock(&mWasteMutex);
 	}
 
