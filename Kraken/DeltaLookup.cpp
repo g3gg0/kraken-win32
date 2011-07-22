@@ -59,6 +59,8 @@ void DeltaLookup::UnloadTable()
 
 void DeltaLookup::LoadTable()
 {
+	size_t ret = 0;
+
     /* Load index - compress to ~41MB of alloced memory */
     FILE* indexfd = fopen(mIndexFileName.c_str(),"rb");
 
@@ -104,19 +106,19 @@ void DeltaLookup::LoadTable()
 		uint32_t spare = 0;
 		uint64_t cachedSize = 0;
 
-		fread(&magic, sizeof(uint32_t), 1, cachefd);
-		fread(&cachedSize, sizeof(uint64_t), 1, cachefd);
+		ret = fread(&magic, sizeof(uint32_t), 1, cachefd);
+		ret = fread(&cachedSize, sizeof(uint64_t), 1, cachefd);
 
 		/* check if stored magic and index file size match */
 		if(magic == CACHE_MAGIC && index_file_size == cachedSize)
 		{
 			/* they match, so load the already prepared data */
-			fread(&spare, sizeof(uint32_t), 1, cachefd);
-			fread(&mStepSize, sizeof(int64_t), 1, cachefd);
-			fread(&mLowEndpoint, sizeof(uint64_t), 1, cachefd);
-			fread(&mHighEndpoint, sizeof(uint64_t), 1, cachefd);
-			fread(mBlockIndex, (size_t) mBlockIndexSize, 1, cachefd);
-			fread(mPrimaryIndex, (size_t) mPrimaryIndexSize, 1, cachefd);
+			ret = fread(&spare, sizeof(uint32_t), 1, cachefd);
+			ret = fread(&mStepSize, sizeof(int64_t), 1, cachefd);
+			ret = fread(&mLowEndpoint, sizeof(uint64_t), 1, cachefd);
+			ret = fread(&mHighEndpoint, sizeof(uint64_t), 1, cachefd);
+			ret = fread(mBlockIndex, (size_t) mBlockIndexSize, 1, cachefd);
+			ret = fread(mPrimaryIndex, (size_t) mPrimaryIndexSize, 1, cachefd);
 			cached = true;
 		}
 		fclose(cachefd);
