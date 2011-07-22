@@ -102,7 +102,7 @@ bool Kraken::LoadExtension(char *extension, char *parms)
 	char file[64];
 	bool (*fInit)(Kraken *, char *) = NULL;
     void* lHandle = NULL;
-	
+
 	sprintf(file, "%s"DL_EXT, extension);
 	lHandle = DL_OPEN(file);
 
@@ -121,9 +121,9 @@ bool Kraken::LoadExtension(char *extension, char *parms)
 
 	fInit = (bool (*)(Kraken *, char *))DL_SYM(lHandle, "ext_init");
 #ifndef WIN32
-    char* lError = dlerror();
+    lError = dlerror();
     if (lError) {
-        fprintf(stderr, " [E] Error when loading symbol 'ext_init' from %s: %s\n", name, file, lError);
+        fprintf(stderr, " [E] Error when loading symbol 'ext_init' from %s: %s%s\n", name, file, lError);
         return false;
     }
 #else

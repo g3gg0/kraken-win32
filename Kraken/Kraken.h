@@ -114,7 +114,7 @@ private:
 
 	map<uint64_t,t_job> mJobs;
     deque<uint64_t> mNewJobs;
-	map<Fragment*,int> mWastedFragments;
+	map<Fragment*,uint64_t> mWastedFragments;
 };
 
 
