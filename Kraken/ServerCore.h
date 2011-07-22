@@ -12,6 +12,8 @@
 
 #include <queue>
 
+#define MAX_CLIENTS 25
+
 using namespace std;
 
 typedef void (*dispatch)(int, char*);

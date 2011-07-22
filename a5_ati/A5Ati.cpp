@@ -16,6 +16,7 @@
  *
  *******************************************************************/
 
+#include <Globals.h>
 #include "A5Ati.h"
 
 #include <stdio.h>
@@ -34,7 +35,7 @@ using namespace std;
 #include <deque>
 #include <list>
 
-#include <Globals.h>
+#include "Memdebug.h"
 
 /**
  * Construct an instance of A5 Ati searcher

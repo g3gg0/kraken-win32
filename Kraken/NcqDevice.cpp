@@ -1,4 +1,5 @@
 
+#include "Globals.h"
 #include "NcqDevice.h"
 
 #include "Kraken.h"
@@ -15,7 +16,7 @@
 #include <stdio.h>
 #include <string.h>
 
-#include <Globals.h>
+#include "Memdebug.h"
 
 NcqDevice::NcqDevice(const char* pzDevNode)
 {

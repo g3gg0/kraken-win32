@@ -1,4 +1,5 @@
 
+#include "Globals.h"
 #include "Fragment.h"
 
 #include "Kraken.h"
@@ -7,7 +8,8 @@
 #include "../a5_cpu/A5CpuStubs.h"
 #include "../a5_ati/A5GpuStubs.h"
 
-#include <Globals.h>
+#include "Memdebug.h"
+
 
 static uint64_t kr02_whitening(uint64_t key)
 {

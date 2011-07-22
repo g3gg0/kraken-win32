@@ -1,4 +1,5 @@
 
+#include "Globals.h"
 #include "Kraken.h"
 #include "Fragment.h"
 
@@ -13,7 +14,8 @@
 #include "../a5_cpu/A5CpuStubs.h"
 #include "../a5_ati/A5GpuStubs.h"
 
-#include <Globals.h>
+#include "Memdebug.h"
+
 
 /* g3gg0: hardcore-link to find_kc. someone should clean this up. */
 int find_kc(uint64_t stop, uint32_t pos, uint32_t framecount, uint32_t framecount2, char* testbits, unsigned char *keydata );
@@ -964,7 +966,7 @@ public:
 		mutex_unlock(&mMutex);
 
 		/* thats the result of start_value=0, start_round=0 */
-		if(result != 0xd5258184902f7000 || start_round != 0)
+		if(result != 0xd5258184902f7000ULL || start_round != 0)
 		{
 			char msg[256];
 			sprintf(msg, "216 A5 Performance test failed. Algo returned invalid result value.\r\n" );

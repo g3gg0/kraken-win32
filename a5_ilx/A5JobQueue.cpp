@@ -1,5 +1,10 @@
+
+
+#include <Globals.h>
 #include "A5JobQueue.h"
 #include <stdio.h>
+
+#include "Memdebug.h"
 
 A5JobQueue::A5JobQueue(int size) :
     mSize(size),

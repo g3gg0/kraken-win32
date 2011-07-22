@@ -16,6 +16,7 @@
  *
  *******************************************************************/
 
+#include <Globals.h>
 #include "A5Slice.h"
 
 #include <assert.h>
@@ -26,7 +27,7 @@
 
 #include "kernelLib.h"
 
-#include <Globals.h>
+#include "Memdebug.h"
 
 #define DISASSEMBLE 0
 

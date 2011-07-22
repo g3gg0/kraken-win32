@@ -1,4 +1,5 @@
 
+#include "Globals.h"
 #include "ServerCore.h"
 
 #include <stdio.h>
@@ -16,9 +17,8 @@
 #define close closesocket
 #endif
 
-#define MAX_CLIENTS 25
+#include "Memdebug.h"
 
-#include <Globals.h>
 
 
 ServerCore::ServerCore(int port,dispatch cb) :

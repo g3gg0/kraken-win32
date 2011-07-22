@@ -1,9 +1,10 @@
 
+#include <Globals.h>
 #include "CalModule.h"
 
 #include <stdio.h>
 
-#include <Globals.h>
+#include "Memdebug.h"
 
 CalModule::CalModule(CALcontext* ctx) :
     mCtx(ctx),

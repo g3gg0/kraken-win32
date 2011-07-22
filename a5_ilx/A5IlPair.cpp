@@ -5,6 +5,7 @@
  *
  *******************************************************************/
 
+#include <Globals.h>
 #include "A5IlPair.h"
 #include <assert.h>
 #include <sys/time.h>
@@ -14,6 +15,8 @@
 #include "Advance.h"
 
 #include "kernelLib.h"
+
+#include "Memdebug.h"
 
 #define MAX_RFTABLE_ENTRIES 1024
 

@@ -16,6 +16,7 @@
  *
  *******************************************************************/
 
+#include <Globals.h>
 #include "A5Cpu.h"
 
 #include <stdio.h>
@@ -23,10 +24,11 @@
 #include <limits.h>
 #include <sys/time.h>
 
-#include <Globals.h>
 
 using namespace std;
 #include <deque>
+
+#include "Memdebug.h"
 
 /**
  * Construct an instance of A5 Cpu searcher

@@ -1,8 +1,9 @@
 
 
+#include "Globals.h"
 #include "ext_xmpp.h"
 
-#include "Globals.h"
+#include "Memdebug.h"
 
 extern "C"
 {

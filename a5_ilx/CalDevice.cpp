@@ -1,10 +1,12 @@
 
+#include <Globals.h>
 #include "CalDevice.h"
 
 #include <stdio.h>
 #include <assert.h>
 
-#include <Globals.h>
+#include "Memdebug.h"
+
 
 /****
  * C++ object that ensures that Cal is initialized for the duration

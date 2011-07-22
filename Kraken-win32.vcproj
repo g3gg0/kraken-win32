@@ -416,6 +416,10 @@
 				>
 			</File>
 			<File
+				RelativePath=".\Kraken\Memdebug.h"
+				>
+			</File>
+			<File
 				RelativePath=".\Kraken\NcqDevice.cpp"
 				>
 			</File>

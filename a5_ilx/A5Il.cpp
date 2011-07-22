@@ -6,11 +6,14 @@
  *
  *******************************************************************/
 
+#include <Globals.h>
 #include "A5Il.h"
 #include <stdio.h>
 #include <sys/time.h>
 #include <assert.h>
 #include "A5IlPair.h"
+
+#include "Memdebug.h"
 
 using namespace std;
 

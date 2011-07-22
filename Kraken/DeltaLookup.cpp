@@ -1,4 +1,5 @@
 
+#include "Globals.h"
 #include "DeltaLookup.h"
 
 #include "NcqDevice.h"
@@ -11,7 +12,8 @@
 #include <unistd.h>
 #include <stropts.h>
 
-#include <Globals.h>
+#include "Memdebug.h"
+
 
 #define READ8()\
     bits = (mBitBuffer>>(mBitCount-8))&0xff;                 \

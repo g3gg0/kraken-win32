@@ -1,4 +1,5 @@
 
+#include <Globals.h>
 #include <stdio.h>
 #include <malloc.h>
 #include <assert.h>
@@ -10,14 +11,15 @@
 #include <windows.h>
 #endif
 
-#include <Globals.h>
 
 extern "C" {
 #ifdef HAVE_ZLIB
-#include "zlib.h"
+#include <zlib.h>
 #endif
 
 }
+
+#include "Memdebug.h"
 
 /* w32 version loads kernels from disk only */
 #ifdef WIN32
