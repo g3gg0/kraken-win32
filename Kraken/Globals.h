@@ -1,10 +1,14 @@
 #ifndef __GLOBALS_H__
 #define __GLOBALS_H__
 
-/* random token for SVN version push: fdg454tsfg */
+/* random token for SVN version push: fg45t45gaer4 */
 
 //#define MEMDEBUG
 
+/* max length for messages */
+#define MAX_MSG_LENGTH 2048
+
+/* macros to string-ify compiler defines etc */
 #define STRINGIZE_WRAP(z) #z
 #define STRINGIZE(z) STRINGIZE_WRAP(z)
 

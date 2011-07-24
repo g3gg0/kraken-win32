@@ -98,46 +98,29 @@ const char *HelpMessages[] =
 	""
 };
 
+/* we want to decouple plugin and Kraken threads. here is all stuff to receive messages asynchronously */
+t_mutex AsyncTransmitMutex;
+char AsyncMessage[MAX_MSG_LENGTH + 1];
+int AsyncClientId = -1;
 
-bool Kraken::LoadExtension(char *extension, char *parms)
-{	
-	char file[64];
-	bool (*fInit)(Kraken *, char *) = NULL;
-    void* lHandle = NULL;
+/**
+ *  Receive and parse commands from clients
+ */
+void serverCmd(int clientID, char *cmd)
+{
+	mutex_lock(&AsyncTransmitMutex);
 
-	sprintf(file, "%s"DL_EXT, extension);
-	lHandle = DL_OPEN(file);
+	/* wait until last message was processed if any. */
+	while(AsyncClientId >= 0)
+	{
+		Sleep(50);
+	}
 
-#ifndef WIN32
-    char* lError = dlerror();
-    if (lError) {
-        fprintf(stderr, " [E] Error when opening A5Cpu"DL_EXT": %s\n", lError);
-        return false;
-    }
-#else
-    if (lHandle == NULL) {
-        fprintf(stderr, " [E] Error when opening %s: 0x%08X\n", file, GetLastError());
-        return false;
-    }
-#endif
+	strncpy(AsyncMessage, cmd, MAX_MSG_LENGTH);
+	AsyncClientId = clientID;
 
-	fInit = (bool (*)(Kraken *, char *))DL_SYM(lHandle, "ext_init");
-#ifndef WIN32
-    lError = dlerror();
-    if (lError) {
-        fprintf(stderr, " [E] Error when loading symbol 'ext_init' from %s: %s%s\n", file, file, lError);
-        return false;
-    }
-#else
-    if (*fInit == NULL) {
-        fprintf(stderr, " [E] Error when loading symbol 'ext_init' from %s: 0x%08X\n", file, GetLastError());
-        return false;
-    }
-#endif
-
-	return fInit(this, parms);
+	mutex_unlock(&AsyncTransmitMutex);
 }
-
 
 /**
  *  Create a singleton like instance of Kraken
@@ -298,6 +281,45 @@ Kraken::~Kraken()
 	Shutdown();
 }
 
+bool Kraken::LoadExtension(char *extension, char *parms)
+{	
+	char file[64];
+	bool (*fInit)(Kraken *, char *) = NULL;
+    void* lHandle = NULL;
+
+	sprintf(file, "%s"DL_EXT, extension);
+	lHandle = DL_OPEN(file);
+
+#ifndef WIN32
+    char* lError = dlerror();
+    if (lError) {
+        fprintf(stderr, " [E] Error when opening A5Cpu"DL_EXT": %s\n", lError);
+        return false;
+    }
+#else
+    if (lHandle == NULL) {
+        fprintf(stderr, " [E] Error when opening %s: 0x%08X\n", file, GetLastError());
+        return false;
+    }
+#endif
+
+	fInit = (bool (*)(Kraken *, char *))DL_SYM(lHandle, "ext_init");
+#ifndef WIN32
+    lError = dlerror();
+    if (lError) {
+        fprintf(stderr, " [E] Error when loading symbol 'ext_init' from %s: %s%s\n", file, file, lError);
+        return false;
+    }
+#else
+    if (*fInit == NULL) {
+        fprintf(stderr, " [E] Error when loading symbol 'ext_init' from %s: 0x%08X\n", file, GetLastError());
+        return false;
+    }
+#endif
+
+	return fInit(this, parms);
+}
+
 void Kraken::UnloadTables()
 {
 	if(mTablesLoaded)
@@ -386,6 +408,13 @@ uint64_t Kraken::Crack(int client, const char* plaintext)
 bool Kraken::Tick()
 {
     mutex_lock(&mMutex);
+
+	/* was there a message to process? */
+	if(AsyncClientId >= 0)
+	{
+		handleServerCmd(AsyncClientId, AsyncMessage);
+		AsyncClientId = -1;
+	}
 
 	/* using a code block to keep variables in smaller scope */
 	{	
@@ -1034,16 +1063,6 @@ public:
  *   
  */
 
-/**
- *  Receive and parse commands from clients
- */
-void serverCmd(int clientID, char *cmd)
-{
-	Kraken* kraken = Kraken::getInstance();
-
-	kraken->handleServerCmd(clientID, cmd);
-}
-
 void Kraken::handleServerCmd(int clientID, char * command)
 {
 	char msg[512];
@@ -1486,6 +1505,8 @@ int main(int argc, char* argv[])
     int server_port = 8866;
     if (argc>2) server_port=atoi(argv[2]);
     Kraken kr(argv[1], server_port);
+
+	mutex_init(&AsyncTransmitMutex);
 
     while (kr.mRunning) {
 		if(!kr.mHalted)

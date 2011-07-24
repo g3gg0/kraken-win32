@@ -168,7 +168,7 @@ void ServerCore::Serve()
         mutex_unlock(&mMutex);
 
 		timeout.tv_sec = 0;
-		timeout.tv_usec = 100000;
+		timeout.tv_usec = 50000;
         readsocks = select(max_desc+1, &sockets, (fd_set*)0, (fd_set*)0, &timeout);
 
 		if (readsocks < 0) {

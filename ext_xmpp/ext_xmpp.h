@@ -10,6 +10,8 @@
 #define EXT_XMPP_API __declspec(dllimport)
 #endif
 
+#define XMPP_START_CLIENTID 10000000
+
 #pragma once
 
 extern "C" 
@@ -30,6 +32,7 @@ extern "C"
 #include <string>
 #include <sstream>
 using namespace std;
+
 
 class XMPPServerCore
 {

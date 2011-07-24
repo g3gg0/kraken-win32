@@ -1,6 +1,6 @@
 
 
-#include "Globals.h"
+#include <Globals.h>
 #include "ext_xmpp.h"
 
 #include "Memdebug.h"
@@ -8,6 +8,12 @@
 extern "C"
 {
 	XMPPServerCore *Core;
+
+	/* we want to decouple XMPP and Kraken threads. here is all stuff to send messages asynchronously */
+	t_mutex AsyncTransmitMutex;
+	char AsyncMessage[MAX_MSG_LENGTH + 1];
+	int AsyncClientId = -1;
+	bool AsyncTransmitResult = false;
 
 	void async_thread(void *arg)
 	{
@@ -207,13 +213,44 @@ extern "C"
 
 	bool WriteClient(void *ctx, int client, char *msg)
 	{
-		return ((XMPPServerCore*)ctx)->writeClient(client, msg);
+		bool ret = false;
+
+		/* obviously not a client ID for XMPP */
+		if(client < XMPP_START_CLIENTID)
+		{
+			return false;
+		}
+
+		/* Let the async thread trasmit our message */
+		mutex_lock(&AsyncTransmitMutex);
+
+		/* wait until last message was processed if any. should not happen. */
+		while(AsyncClientId >= 0)
+		{
+			Sleep(50);
+		}
+
+		/* fill message first, then set ID non-negative */
+		strncpy(AsyncMessage, msg, MAX_MSG_LENGTH);
+		AsyncClientId = client;
+
+		/* wait until message was processed */
+		while(AsyncClientId >= 0)
+		{
+			Sleep(50);
+		}
+
+		ret = AsyncTransmitResult;
+
+		mutex_unlock(&AsyncTransmitMutex);
+
+		return ret;
 	}
 }
 
 XMPPServerCore::XMPPServerCore(Kraken *instance, char *parms) 
 {
-	currentId = 10000000;
+	currentId = XMPP_START_CLIENTID;
 	krakenInstance = instance;
 	parameters = parms;
 
@@ -226,6 +263,8 @@ XMPPServerCore::XMPPServerCore(Kraken *instance, char *parms)
 	/* set our code as client interface */
 	krakenInstance->mWriteClientCtx = this;
 	krakenInstance->mWriteClient = WriteClient;
+
+	mutex_init(&AsyncTransmitMutex);
 }
 
 
@@ -587,18 +626,28 @@ void XMPPServerCore::asyncHandler()
 
 	while(!stopAsyncHandler)
 	{
-		Sleep(250);
+		Sleep(50);
 
+		/* retry to join conference? */
 		if(joinConferenceTime != 0 && joinConferenceTime < time(NULL))
 		{
 			joinConference(serverContext);
 			joinConferenceTime = time(NULL) + 20;
 		}
 
+		/* next ping being scheduled? */
 		if(presenceAvailable && nextPing < time(NULL))
 		{
 			nextPing = time(NULL) + 30;
 			send_ping(connection, serverContext, username);
+		}
+		
+		/* is there a message to transmit? */
+		if(AsyncClientId >= 0)
+		{
+			/* transmit message and signal finished transmission with setting ID negative */
+			AsyncTransmitResult = writeClient(AsyncClientId, AsyncMessage);
+			AsyncClientId = -1;
 		}
 	}
 
@@ -645,7 +694,6 @@ extern "C" {
 		}
 	}
 
-
 	bool EXT_XMPP_API ext_init(Kraken* instance, char *parms)
 	{
 		kraken_instance = instance;
@@ -654,5 +702,4 @@ extern "C" {
 
 		return true;
 	}
-
 }
