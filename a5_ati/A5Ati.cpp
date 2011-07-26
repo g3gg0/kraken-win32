@@ -227,7 +227,7 @@ char *AtiA5::GetDeviceStats()
 		{
 			if(i > 0)
 			{
-				strcat(mDeviceStats, ", ");
+				strcat(mDeviceStats, ",");
 			}
 			strcat(mDeviceStats, stats);
 		}

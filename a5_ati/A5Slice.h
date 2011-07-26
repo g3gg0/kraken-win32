@@ -111,6 +111,7 @@ private:
 
     /* Controller */
 	char          mDeviceStats[512];
+	char          mDevType[32];
     AtiA5*        mController;
 
     wait_state    mWaitState;

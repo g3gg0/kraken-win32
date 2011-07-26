@@ -41,6 +41,7 @@ A5Cpu::A5Cpu(int max_rounds, int condition, int threads)
   mWait = false;
   mWaiting = false;
   mRequestCount = 0;
+  mAvgProcessTime = -1.0f;
 
   /* Set up lookup tables */
   CalcTables();
@@ -333,7 +334,7 @@ void A5Cpu::Process(void)
 
     if (!active) {
       /* Don't use CPU while idle */
-      usleep(250);
+      usleep(50);
       continue;
     }
 
@@ -448,13 +449,6 @@ void A5Cpu::Process(void)
         }
     }
 
-    gettimeofday( &tEnd, NULL );
-    unsigned int uSecs = 1000000 * (tEnd.tv_sec - tStart.tv_sec);
-    uSecs += (tEnd.tv_usec - tStart.tv_usec);
-
-    //printf("Completed in %i ms\n", uSecs/1000);
-
-
     uint64_t res = (((uint64_t)out_hi)<<32)|out_lo;
     res = ReverseBits(res);
 
@@ -468,9 +462,26 @@ void A5Cpu::Process(void)
 
 	active = false;
 
+	/* calc average processing time */
+    gettimeofday( &tEnd, NULL );
+    uint64_t diff = 1000000ULL * (tEnd.tv_sec - tStart.tv_sec);
+    diff += (tEnd.tv_usec - tStart.tv_usec);
+    double diffSeconds = ((double)diff) / 1000000.0f;
+
     /* Report completed chains */
     mutex_lock(&mMutex);
 	mResults[job_id].push_back(result);
+
+	/* update average processing time */
+	if(mAvgProcessTime >= 0)
+	{
+		mAvgProcessTime = (mAvgProcessTime + diffSeconds) / 2.0f;
+	}
+	else
+	{
+		mAvgProcessTime = diffSeconds;
+	}
+
     mutex_unlock(&mMutex);
   }
 }
@@ -614,6 +625,18 @@ void A5Cpu::CalcTables(void)
     }
 }
 
+char* A5Cpu::GetDeviceStats() 
+{ 
+	if(mAvgProcessTime > 0)
+	{
+		sprintf(mDeviceStats, "%i Cores: Average speed is %.2f calcs/s per core (total %.2f calcs/s)", mNumThreads, (1.0f/mAvgProcessTime), (mNumThreads/mAvgProcessTime) );
+	}
+	else
+	{
+		sprintf(mDeviceStats, "%i Cores: Average speed is <untested>", mNumThreads );
+	}
+	return mDeviceStats; 
+}
 
 /* Stubs for shared library - exported without name mangling */
 
@@ -694,7 +717,10 @@ void DLL_PUBLIC A5SpinLock(bool state)
 
 char DLL_PUBLIC * A5GetDeviceStats()
 {
-	return NULL;
+	if (a5Instance)
+    {
+		return a5Instance->GetDeviceStats();
+	}
 }
 
 bool DLL_PUBLIC A5PipelineInfo(int &length)

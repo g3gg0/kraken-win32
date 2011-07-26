@@ -65,59 +65,9 @@ bool CalInitObject::checkInt()
 
 			// Query the number of devices on the system
 			CALuint numDevices = 0;
-			if(calDeviceGetCount(&numDevices) != CAL_RESULT_OK) 
-				return false;
-
-			for(unsigned int dev = 0; dev < numDevices; dev++)
+			if(calDeviceGetCount(&numDevices) != CAL_RESULT_OK)
 			{
-				// Get the information on the 0th device
-				CALdeviceinfo info;
-				if(calDeviceGetInfo(&info, dev) != CAL_RESULT_OK) 
-					return false;
-
-				char *devType = "unknown";
-				
-				switch(info.target)
-				{
-					case CAL_TARGET_600:
-						devType = "GPU R600";
-						break;
-					case CAL_TARGET_610:
-						devType = "GPU R610";
-						break;
-					case CAL_TARGET_630:
-						devType = "GPU R630";
-						break;
-					case CAL_TARGET_670:
-						devType = "GPU R670";
-						break;
-					case CAL_TARGET_7XX:
-						devType = "GPU RV7xx";
-						break;
-					case CAL_TARGET_770:
-						devType = "GPU RV770";
-						break;
-					case CAL_TARGET_710:
-						devType = "GPU RV710";
-						break;
-					case CAL_TARGET_730:
-						devType = "GPU RV730";
-						break;
-					case CAL_TARGET_CYPRESS:
-						devType = "GPU CYPRESS";
-						break;
-					case CAL_TARGET_JUNIPER:
-						devType = "GPU JUNIPER";
-						break;
-					case CAL_TARGET_REDWOOD:
-						devType = "GPU REDWOOD";
-						break;
-					case CAL_TARGET_CEDAR:
-						devType = "GPU CEDAR";
-						break;
-				}
-
-				fprintf(stderr, " [x] A5Ati:   [%i] Device Type = %s\n", dev, devType);
+				return false;
 			}
         }
 		else

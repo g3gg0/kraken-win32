@@ -61,13 +61,76 @@ A5Slice::A5Slice(AtiA5* cont, int dev, int dp, int rounds, int pipe_mult) :
     mDevNo = dev;
     mMaxCycles = (1<<mDp)*rounds*10;
 	mAvgExecTime = 0.0f;
-	mAvgProcessTime = 0.0f;
+	mAvgProcessTime = -1.0f;
 	sprintf(mDeviceStats, "(no data yet)");
 
+	/* make sure the device is present */
+    if((mDevNo < 0) || (mDevNo > CalDevice::getNumDevices()))
+	{
+		printf ( " [E] A5Ati:   [%i] Tried to open invalid device '%i'\r\n", mDevNo);
+		return;
+	}
+
+	// Get the information on the device
+	CALdeviceinfo info;
+	if(calDeviceGetInfo(&info, mDevNo) != CAL_RESULT_OK)
+	{
+		printf ( " [E] A5Ati:   [%i] Failed to query invalid device '%i'\r\n", mDevNo);
+		return;
+	}
+
+	char *devType = "unknown";
+	
+	switch(info.target)
+	{
+		case CAL_TARGET_600:
+			devType = "GPU R600";
+			break;
+		case CAL_TARGET_610:
+			devType = "GPU R610";
+			break;
+		case CAL_TARGET_630:
+			devType = "GPU R630";
+			break;
+		case CAL_TARGET_670:
+			devType = "GPU R670";
+			break;
+		case CAL_TARGET_7XX:
+			devType = "GPU RV7xx";
+			break;
+		case CAL_TARGET_770:
+			devType = "GPU RV770";
+			break;
+		case CAL_TARGET_710:
+			devType = "GPU RV710";
+			break;
+		case CAL_TARGET_730:
+			devType = "GPU RV730";
+			break;
+		case CAL_TARGET_CYPRESS:
+			devType = "GPU CYPRESS";
+			break;
+		case CAL_TARGET_JUNIPER:
+			devType = "GPU JUNIPER";
+			break;
+		case CAL_TARGET_REDWOOD:
+			devType = "GPU REDWOOD";
+			break;
+		case CAL_TARGET_CEDAR:
+			devType = "GPU CEDAR";
+			break;
+	}
+
+	sprintf(mDevType, devType);
+	printf(" [x] A5Ati:   [%i] Device Type: %s\n", mDevNo, mDevType);
+
     // CAL setup
-    assert((dev>=0)&&(dev<CalDevice::getNumDevices()));
     mDev = CalDevice::createDevice(dev);
-    assert(mDev);
+    if(mDev == NULL)
+	{
+		printf ( " [E] A5Ati:   [%i] Failed to open invalid device '%i'\r\n", mDevNo);
+		return;
+	}
     mNum = mDev->getDeviceAttribs()->wavefrontSize * mDev->getDeviceAttribs()->numberOfSIMD * pipe_mult;
 
     unsigned int dim = mNum;
@@ -236,11 +299,11 @@ char* A5Slice::GetDeviceStats()
 { 
 	if(mAvgProcessTime > 0)
 	{
-		sprintf(mDeviceStats, "Core %i: Average speed is %.3f jobs/s\r\n", mDevNo, (1.0f/mAvgProcessTime) );
+		sprintf(mDeviceStats, "Core %i %s: Average speed is %.2f calcs/s (per single thread)", mDevNo, mDevType, (1.0f/mAvgProcessTime) );
 	}
 	else
 	{
-		sprintf(mDeviceStats, "Core %i: Average speed is <untested>\r\n", mDevNo );
+		sprintf(mDeviceStats, "Core %i %s: Average speed is <untested>", mDevNo, mDevType );
 	}
 	return mDeviceStats; 
 }
@@ -626,11 +689,18 @@ bool A5Slice::tick()
 			if(true)
 			{
 				gettimeofday(&tv2, NULL);
-				unsigned long diff = 1000000*(tv2.tv_sec-mTvStarted.tv_sec);
-				diff += tv2.tv_usec-mTvStarted.tv_usec;
-				double time = ((double)diff) / 1000000.0f;
+				uint64_t diff = 1000000ULL * (tv2.tv_sec - mTvStarted.tv_sec);
+				diff += tv2.tv_usec - mTvStarted.tv_usec;
+				double diffSeconds = ((double)diff) / 1000000.0f;
 
-				mAvgProcessTime = (mAvgProcessTime + time) / 2;
+				if(mAvgProcessTime >= 0)
+				{
+					mAvgProcessTime = (mAvgProcessTime + diffSeconds) / 2.0f;
+				}
+				else
+				{
+					mAvgProcessTime = diffSeconds;
+				}
 			}
 			
             // printf("process() took %i usec\n",diff);

@@ -91,6 +91,7 @@ public:
   void Cancel(uint64_t job_id);
   static uint64_t ReverseBits(uint64_t r);
   static int PopcountNibble(int x);
+  char* GetDeviceStats() ;
 
 private:
   void CalcTables(void);
@@ -103,6 +104,8 @@ private:
 
   unsigned int mCondition;
   unsigned int mMaxRound;
+  double       mAvgProcessTime;
+  char mDeviceStats[2048];
 
   bool mIsUsingTables;
   uint16_t mClockMask[16*16*16];

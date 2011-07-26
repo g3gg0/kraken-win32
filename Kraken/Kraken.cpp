@@ -962,7 +962,7 @@ public:
 		mRequestsRunning = 0;
 		mGpu = gpu;
 		
-		srand( (unsigned)time( NULL ) );
+		srand( (unsigned int)time( NULL ) );
 	}
 
     void Start(uint64_t requests)
@@ -1153,7 +1153,7 @@ void Kraken::handleServerCmd(int clientID, char * command)
 			sendMessage(msg, clientID);
 		}
 
-		sprintf(msg, "223\r\n" );
+		sprintf(msg, "222\r\n" );
 	}
     else if (!strncmp(command,"status",6))
 	{
@@ -1169,37 +1169,47 @@ void Kraken::handleServerCmd(int clientID, char * command)
 	}
     else if (!strncmp(command,"stats",5))
 	{
-		size_t size = 512;
-		char *buffer = (char*)malloc(size);
-		
-		strcpy(buffer, "214 ");
-
-		for (int i=0; i<mNumDevices; i++) {
-			strcat(buffer,mDevices[i]->GetDeviceStats());
-			if((i + 1) < mNumDevices)
-			{
-				strcat(buffer," - ");
-			}
-
-			size += strlen(buffer) + 1;
-			buffer = (char*)realloc(buffer, size);
+		for (int i=0; i<mNumDevices; i++) 
+		{
+			sprintf(msg, "214 HDD %s\r\n", mDevices[i]->GetDeviceStats());
+			sendMessage(msg, clientID);
 		}
-		char *gpuStats = A5GpuGetDeviceStats();
 
+		char *cpuStats = A5CpuGetDeviceStats();
+		if(cpuStats != NULL && strlen(cpuStats) > 0)
+		{
+			sprintf(msg, "214 CPU %s\r\n", cpuStats);
+			sendMessage(msg, clientID);
+		}
+
+		char *gpuStats = A5GpuGetDeviceStats();
 		if(gpuStats != NULL && strlen(gpuStats) > 0)
 		{
-			size += strlen(buffer) + strlen(gpuStats) + 1;
-			buffer = (char*)realloc(buffer, size);
+			/* split comma-separated list of cores into seperate lines */
+			char *end = NULL;
 
-			strcat(buffer, " - GPUs: ");
-			strcat(buffer, gpuStats);
+			do
+			{
+				end = strchr(gpuStats, ',');
+				if(end != NULL)
+				{
+					*end = '\000';
+				}
+
+				if(strlen(gpuStats) > 0)
+				{
+					sprintf(msg, "214 GPU %s\r\n", gpuStats);
+					sendMessage(msg, clientID);
+				}
+
+				if(end != NULL)
+				{
+					gpuStats = end + 1;
+				}
+			} while(end != NULL);
 		}
-		strcat(buffer,"\r\n");
 
-		size = strlen(buffer) + 1;
-
-		strncpy(msg, buffer, (size >= sizeof(msg))?(sizeof(msg)-1):(size));
-		free(buffer);
+		sprintf(msg, "214\r\n" );
 	}
     else if (!strncmp(command,"crack",5))
 	{
