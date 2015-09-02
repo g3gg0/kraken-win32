@@ -263,7 +263,7 @@ Kraken::Kraken(const char* config, int server_port) :
 	mutex_init(&mWasteMutex);
 	mutex_init(&mConsoleMutex);
 
-	A5CpuInit(8, 12, 4);
+	A5CpuInit(8, 12, 8);
 	mUsingGpu = A5GpuInit(8, 12, 0xffffffff, 1);
 
 	gettimeofday(&mLastJobTime, NULL);
@@ -1088,6 +1088,12 @@ void Kraken::handleServerCmd(int clientID, char * command)
 		// Test frame 998
 		uint64_t id = Crack(clientID, "001101110011000000001000001100011000100110110110011011010011110001101010100100101111111010111100000110101001101011");
 
+		/*
+			expecting results:
+			[i] 103 0 DE6BB5E60617F95C 12 (found a table hit in table 340)
+			[i] 103 0 6FB7905579E28BFC 23 (found a table hit in table 372)
+		*/
+
 		sprintf(msg, "101 %d Request queued (%d already in queue).\r\n", (int)id, (int)queued);
 	}
 	else if (!strncmp(command, "tables", 6))
@@ -1510,14 +1516,19 @@ void *Kraken::consoleThread(void *arg)
  */
 int main(int argc, char* argv[])
 {
+	/*
 	if (argc < 2) {
-		printf("usage: %s <index_path> [server port]\n", argv[0]);
+		printf("usage: %s [index_path] [server port]\n", argv[0]);
 		return -1;
 	}
+	*/
 
 	int server_port = 8866;
+	char *path = ".";
+
+	if (argc > 1) path = argv[1];
 	if (argc > 2) server_port = atoi(argv[2]);
-	Kraken kr(argv[1], server_port);
+	Kraken kr(path, server_port);
 
 	mutex_init(&AsyncTransmitMutex);
 
