@@ -50,7 +50,7 @@ static void LoadDLL(void)
 {
     if (isDllError) return;
 
-    void* lHandle = DL_OPEN("./A5Gpu"DL_EXT);
+    void* lHandle = DL_OPEN("./A5Gpu" DL_EXT);
 
 #ifndef WIN32
     char* lError = dlerror();
@@ -61,10 +61,10 @@ static void LoadDLL(void)
 #else
     if (lHandle == NULL) {
         if(GetLastError() != ERROR_MOD_NOT_FOUND) {
-            fprintf(stderr, " [E] Will not use A5Gpu"DL_EXT". Error Code: 0x%08X\n", GetLastError());
+            fprintf(stderr, " [E] Will not use A5Gpu" DL_EXT ". Error Code: 0x%08X\n", GetLastError());
         }
         else {
-            fprintf(stderr, " [i] No A5Gpu"DL_EXT" found. Will not use a graphics card.\n");
+            fprintf(stderr, " [i] No A5Gpu" DL_EXT " found. Will not use a graphics card.\n");
         }
         return;
     }

@@ -287,7 +287,7 @@ bool Kraken::LoadExtension(char *extension, char *parms)
 	bool (*fInit)(Kraken *, char *) = NULL;
     void* lHandle = NULL;
 
-	sprintf(file, "%s"DL_EXT, extension);
+	sprintf(file, "%s" DL_EXT, extension);
 	lHandle = DL_OPEN(file);
 
 #ifndef WIN32
@@ -1468,7 +1468,7 @@ void *Kraken::consoleThread(void *arg)
 	Kraken* kraken = (Kraken*)arg;
 
     printf("\n");
-    printf("Started '"KRAKEN_VERSION"'\n");
+    printf("Started '" KRAKEN_VERSION "'\n");
     printf("Commands are: crack test status stats fake cancel about help quit\n");
     printf("\n");
 	printf("Kraken> ");

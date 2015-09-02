@@ -49,7 +49,7 @@ static void LoadDLL(void)
 {
     if (isDllError) return;
 
-    void* lHandle = DL_OPEN("./A5Cpu"DL_EXT);
+    void* lHandle = DL_OPEN("./A5Cpu" DL_EXT);
 
 #ifndef WIN32
     char* lError = dlerror();
@@ -59,7 +59,7 @@ static void LoadDLL(void)
     }
 #else
     if (lHandle == NULL) {
-        fprintf(stderr, " [E] Error when opening A5Cpu"DL_EXT": 0x%08X\n", GetLastError());
+        fprintf(stderr, " [E] Error when opening A5Cpu" DL_EXT ": 0x%08X\n", GetLastError());
         return;
     }
 #endif
