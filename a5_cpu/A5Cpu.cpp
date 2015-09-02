@@ -98,7 +98,7 @@ int  A5Cpu::Submit(uint64_t job_id, uint64_t start_value, uint64_t target,
 	int32_t start_round, int32_t stop_round,
 	uint32_t advance, void* context)
 {
-	if (start_round >= mMaxRound) return -1;
+	if ((unsigned int)start_round >= mMaxRound) return -1;
 	if (stop_round < 0) stop_round = mMaxRound;
 
 	mutex_lock(&mMutex);
@@ -721,6 +721,7 @@ extern "C" {
 		{
 			return a5Instance->GetDeviceStats();
 		}
+		return "";
 	}
 
 	bool DLL_PUBLIC A5PipelineInfo(int &length)
