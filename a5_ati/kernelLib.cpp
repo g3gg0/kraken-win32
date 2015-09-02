@@ -46,17 +46,17 @@ extern unsigned int _binary_my_kernel_dp14_Z_size;
 extern unsigned int _binary_my_kernel_dp14_Z_start;
 
 static char* gKernelStarts[4] = {
-    (char*)&_binary_my_kernel_dp11_Z_start,
-    (char*)&_binary_my_kernel_dp12_Z_start,
-    (char*)&_binary_my_kernel_dp13_Z_start,
-    (char*)&_binary_my_kernel_dp14_Z_start
+	(char*)&_binary_my_kernel_dp11_Z_start,
+	(char*)&_binary_my_kernel_dp12_Z_start,
+	(char*)&_binary_my_kernel_dp13_Z_start,
+	(char*)&_binary_my_kernel_dp14_Z_start
 };
 
 static char* gKernelEnds[4] = {
-    (char*)&_binary_my_kernel_dp11_Z_end,
-    (char*)&_binary_my_kernel_dp12_Z_end,
-    (char*)&_binary_my_kernel_dp13_Z_end,
-    (char*)&_binary_my_kernel_dp14_Z_end
+	(char*)&_binary_my_kernel_dp11_Z_end,
+	(char*)&_binary_my_kernel_dp12_Z_end,
+	(char*)&_binary_my_kernel_dp13_Z_end,
+	(char*)&_binary_my_kernel_dp14_Z_end
 };
 #endif
 
@@ -67,23 +67,23 @@ unsigned char* getKernelGeneric(unsigned int dp, char* name)
 {
 	bool zipped = true;
 
-    dp -= 11;
-    if (dp>3) return NULL;
+	dp -= 11;
+	if (dp > 3) return NULL;
 
 #ifdef WIN32
 	char filename[32];
 	FILE* kernel;
-	
-	sprintf_s(filename, "%s%i.il", name, (dp+11));
-	if(fopen_s(&kernel, filename, "rb") != 0) 
+
+	sprintf_s(filename, "%s%i.il", name, (dp + 11));
+	if (fopen_s(&kernel, filename, "rb") != 0)
 	{
 #ifdef HAVE_ZLIB
 		zipped = true;
 
-		sprintf_s(filename, "%s%i.Z", name, (dp+11));
-		if(fopen_s(&kernel, filename, "rb") != 0) 
+		sprintf_s(filename, "%s%i.Z", name, (dp + 11));
+		if (fopen_s(&kernel, filename, "rb") != 0)
 #endif
-		{ 
+		{
 			printf(" [x] A5Ati: Failed opening kernel file '%s'.\r\n", filename);
 			printf(" [x] A5Ati: Make sure the ATI kernels are in the startup directory.\r\n");
 			return NULL;
@@ -100,19 +100,19 @@ unsigned char* getKernelGeneric(unsigned int dp, char* name)
 	fseek(kernel, 0, SEEK_SET);
 
 	gKernelStarts[dp] = (char*)malloc(size);
-	size_t read_blocks = fread(gKernelStarts[dp],size,1,kernel);
+	size_t read_blocks = fread(gKernelStarts[dp], size, 1, kernel);
 	fclose(kernel);
 
-	if(read_blocks != 1) {
+	if (read_blocks != 1) {
 		printf(" [x] A5Ati: Failed decompressing kernel file\r\n");
 		return NULL;
 	}
 
 	gKernelEnds[dp] = gKernelStarts[dp] + size;
-	
+
 #endif
 
-	if(zipped)
+	if (zipped)
 	{
 #ifdef HAVE_ZLIB
 		int ret;
@@ -120,7 +120,7 @@ unsigned char* getKernelGeneric(unsigned int dp, char* name)
 		strm.zalloc = Z_NULL;
 		strm.zfree = Z_NULL;
 		strm.opaque = Z_NULL;
-		strm.avail_in = gKernelEnds[dp]-gKernelStarts[dp];
+		strm.avail_in = gKernelEnds[dp] - gKernelStarts[dp];
 		size_t bsize = CHUNK + 1;
 		void *buf = malloc(bsize);
 		size_t ind = 0;
@@ -130,7 +130,7 @@ unsigned char* getKernelGeneric(unsigned int dp, char* name)
 		if (ret != Z_OK) return NULL;
 
 		do {
-			if ((ind+CHUNK)>bsize) {
+			if ((ind + CHUNK) > bsize) {
 				bsize += CHUNK;
 				buf = realloc(buf, bsize);
 			}
@@ -154,11 +154,11 @@ unsigned char* getKernelGeneric(unsigned int dp, char* name)
 			ind += have;
 
 			// printf("Have %i bytes: in %i\n", have, strm.avail_in);
-	    
+
 		} while (strm.avail_out == 0);
 
 		inflateEnd(&strm);
-		((char*)buf)[ind]=0;
+		((char*)buf)[ind] = 0;
 
 		return (unsigned char*)buf;
 #else
@@ -168,7 +168,7 @@ unsigned char* getKernelGeneric(unsigned int dp, char* name)
 	}
 	else
 	{
-		int length = (int)(gKernelEnds[dp]-gKernelStarts[dp]);
+		int length = (int)(gKernelEnds[dp] - gKernelStarts[dp]);
 		void *buf = malloc(length + 1);
 
 		memcpy(buf, gKernelStarts[dp], length);
@@ -182,7 +182,7 @@ unsigned char* getKernelGeneric(unsigned int dp, char* name)
 
 void freeKernel(unsigned char* k)
 {
-    free(k);
+	free(k);
 }
 
 unsigned char* getFallbackKernel(unsigned int dp)
