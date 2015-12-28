@@ -244,6 +244,11 @@ uint64_t DeltaLookup::StartEndpointSearch(uint64_t job_id, NcqRequestor* req, ui
 	uint64_t bid = (end >> 12) / mStepSize;
 	unsigned int bl = ((unsigned int)bid) / 256;
 
+	if(bl >= mPrimaryIndexEntries) {
+		printf("(%s:%i) Error accessing mPrimaryIndex, (end: %llx) (bl: %x) (entries: %llx) in file '%s'\r\n", __FILE__, __LINE__, end, bl, mPrimaryIndexEntries, mIndexFileName.c_str());
+		return 0ULL;
+	}
+
 	/* Methinks the division has been done by float, and may
 	 * have less precision than required
 	 */
